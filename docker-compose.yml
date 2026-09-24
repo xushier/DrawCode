@@ -1,0 +1,12 @@
+services:
+  drawcode:
+    build: .
+    image: drawcode:latest
+    container_name: drawcode
+    ports:
+      - "9862:9862"
+    volumes:
+      - ./data:/app/data
+    environment:
+      DRAWCODE_DATA_DIR: /app/data
+    restart: unless-stopped

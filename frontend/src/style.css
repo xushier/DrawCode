@@ -1,0 +1,115 @@
+/* 全局样式：字体统一（苹方及类苹方）、对齐、紧凑表格、滚动 */
+:root {
+  --dc-font: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC",
+    "Noto Sans CJK SC", "Microsoft YaHei", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--dc-font);
+  font-weight: 400;
+  color: var(--dc-text);
+  background: var(--dc-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 细滚动条 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--dc-primary) 30%, #b8c0c8);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- 布局基元 ---------- */
+.page {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 100%;
+}
+.page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.card {
+  background: var(--dc-card);
+  border: 1px solid var(--dc-border);
+  border-radius: 10px;
+  box-shadow: var(--dc-shadow);
+}
+.card-pad { padding: 16px; }
+.muted { color: var(--dc-text-soft); font-size: 13px; }
+
+/* ---------- 表格：紧凑、近似 Excel ---------- */
+.dc-table.el-table {
+  --el-table-row-hover-bg-color: var(--dc-primary-soft);
+  font-size: 13px;
+}
+.dc-table.el-table .el-table__header th {
+  background: var(--dc-bg-soft) !important;
+  color: var(--dc-text);
+  font-weight: 500;
+  padding: 6px 0;
+}
+.dc-table.el-table .el-table__cell {
+  padding: 5px 0;
+  line-height: 1.45;
+}
+.dc-table .cell {
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dc-table .el-table__empty-block { min-height: 120px; }
+
+/* 斑马纹交由组件 stripe，浅主题下再弱化一次 */
+html.dark .dc-table.el-table .el-table__tr.bg-row td.el-table__cell {
+  background: var(--dc-bg-soft) !important;
+}
+
+/* ---------- 弹窗 ---------- */
+.el-dialog {
+  border-radius: 12px;
+}
+.el-dialog__header {
+  margin: 0;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--dc-border);
+}
+.el-dialog__title { font-size: 15px; font-weight: 600; }
+.el-dialog__headerbtn { top: 15px; }
+.el-dialog__footer {
+  padding: 10px 20px 14px;
+  border-top: 1px solid var(--dc-border);
+}
+.el-dialog__body { padding: 18px 20px; }
+
+/* ---------- 表单 ---------- */
+.el-form-item__label { font-size: 13px; }
+.el-button { font-weight: 500; }
+
+/* ---------- 数字等宽 ---------- */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ---------- 滚动条平滑 ---------- */
+.el-scrollbar__wrap { scroll-behavior: smooth; }
+
+/* ---------- 移动端 ---------- */
+@media (max-width: 768px) {
+  .page { padding: 10px; gap: 10px; }
+  .el-dialog { width: 94% !important; margin-top: 6vh !important; }
+  .card-pad { padding: 12px; }
+  .el-message-box { width: 92% !important; }
+}

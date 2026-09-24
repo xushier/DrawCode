@@ -1,0 +1,51 @@
+/* 主题系统：6 种四字诗意主题 + 暗色模式（背景同色系低饱和处理） */
+
+html[data-theme] {
+  --el-color-primary: var(--dc-primary);
+  --el-color-primary-light-3: color-mix(in srgb, var(--dc-primary) 70%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--dc-primary) 50%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--dc-primary) 30%, white);
+  --el-color-primary-light-8: color-mix(in srgb, var(--dc-primary) 20%, white);
+  --el-color-primary-light-9: color-mix(in srgb, var(--dc-primary) 10%, white);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--dc-primary) 80%, black);
+  --dc-bg: color-mix(in srgb, var(--dc-primary) 4%, #f4f6f8);
+  --dc-bg-soft: color-mix(in srgb, var(--dc-primary) 9%, #eef1f4);
+  --dc-sidebar: color-mix(in srgb, var(--dc-primary) 8%, #ffffff);
+  --dc-header: color-mix(in srgb, var(--dc-primary) 6%, #ffffff);
+  --dc-card: #ffffff;
+  --dc-border: color-mix(in srgb, var(--dc-primary) 14%, #dfe4e9);
+  --dc-text: #23272e;
+  --dc-text-soft: #5a6470;
+  --dc-primary-soft: color-mix(in srgb, var(--dc-primary) 12%, white);
+  --dc-shadow: 0 1px 3px rgba(30, 40, 50, 0.07);
+}
+
+/* 暗色模式：同色系低亮度背景 */
+html.dark[data-theme] {
+  --el-color-primary-light-3: color-mix(in srgb, var(--dc-primary) 65%, #101215);
+  --el-color-primary-light-5: color-mix(in srgb, var(--dc-primary) 45%, #101215);
+  --el-color-primary-light-7: color-mix(in srgb, var(--dc-primary) 30%, #101215);
+  --el-color-primary-light-8: color-mix(in srgb, var(--dc-primary) 20%, #101215);
+  --el-color-primary-light-9: color-mix(in srgb, var(--dc-primary) 12%, #101215);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--dc-primary) 70%, white);
+  --el-bg-color: color-mix(in srgb, var(--dc-primary) 5%, #13161a);
+  --el-bg-color-overlay: color-mix(in srgb, var(--dc-primary) 6%, #171b20);
+  --dc-bg: color-mix(in srgb, var(--dc-primary) 7%, #0c0e10);
+  --dc-bg-soft: color-mix(in srgb, var(--dc-primary) 11%, #12151a);
+  --dc-sidebar: color-mix(in srgb, var(--dc-primary) 5%, #08090b);
+  --dc-header: color-mix(in srgb, var(--dc-primary) 5%, #0e1013);
+  --dc-card: color-mix(in srgb, var(--dc-primary) 6%, #13161a);
+  --dc-border: color-mix(in srgb, var(--dc-primary) 16%, #20242a);
+  --dc-text: #d8dee6;
+  --dc-text-soft: #8b95a1;
+  --dc-primary-soft: color-mix(in srgb, var(--dc-primary) 22%, #101215);
+  --dc-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* 六种主题色 */
+html[data-theme='lan'] { --dc-primary: #3a7bd5; }
+html[data-theme='cui'] { --dc-primary: #3e8e68; }
+html[data-theme='zi']  { --dc-primary: #7b5fc9; }
+html[data-theme='jin']  { --dc-primary: #d07e2d; }
+html[data-theme='tao']  { --dc-primary: #c9506e; }
+html[data-theme='yun']  { --dc-primary: #4c7e93; }

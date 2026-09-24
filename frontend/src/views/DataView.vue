@@ -1,0 +1,495 @@
+<template>
+  <div class="page data-page">
+    <!-- 表切换 -->
+    <div class="card tabs-card">
+      <el-tabs v-model="activeId" @tab-change="onTableChange" class="dc-tabs">
+        <el-tab-pane v-for="t in tables" :key="t.id" :name="t.id">
+          <template #label>
+            <span class="tab-label">
+              <el-icon><Tickets /></el-icon>
+              {{ t.name }}
+              <span class="tab-count tabular">{{ t.count }}</span>
+            </span>
+          </template>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="card toolbar">
+      <div class="toolbar-left">
+        <el-button type="primary" :icon="Plus" @click="openCreate">申请图号</el-button>
+        <el-button v-if="store.authed" :icon="Upload" @click="importVisible = true">导入</el-button>
+        <el-button :icon="Download" :loading="exporting" @click="doExport">导出</el-button>
+      </div>
+      <div class="toolbar-right">
+        <el-input v-model="search" placeholder="搜索全表内容…" :prefix-icon="Search"
+                  clearable class="search-input" @input="onSearchDebounced" @clear="reload" />
+        <el-popover :width="340" trigger="click" persistent>
+          <template #reference>
+            <el-badge :value="filterCount" :hidden="!filterCount" :offset="[-2, 6]">
+              <el-button :icon="Filter">筛选</el-button>
+            </el-badge>
+          </template>
+          <FilterPanel :key="activeId" ref="filterRef" v-model="filters"
+                       :fields="fields" :options="options" @update:model-value="reload" />
+        </el-popover>
+        <el-popover :width="220" trigger="click">
+          <template #reference>
+            <el-button :icon="Menu">列设置</el-button>
+          </template>
+          <div class="cols-pop">
+            <div class="cols-head">
+              <span class="muted">显示列</span>
+              <el-button link type="primary" size="small" @click="allColumns(true)">全选</el-button>
+            </div>
+            <el-checkbox-group v-model="visibleKeys">
+              <el-checkbox v-for="f in fields" :key="f.key" :value="f.key" :label="f.key">
+                {{ f.label }}
+              </el-checkbox>
+            </el-checkbox-group>
+          </div>
+        </el-popover>
+        <el-segmented v-model="mode" :options="modeOptions" size="default"
+                      @change="reload" class="mode-seg" />
+        <span class="muted total-hint tabular">共 {{ total }} 条</span>
+      </div>
+    </div>
+
+    <!-- 数据表 -->
+    <div class="card table-card" v-loading="loading">
+      <el-table ref="tableRef" :data="records" stripe size="small" class="dc-table"
+                height="100%" :row-key="r => r.id"
+                :default-sort="{ prop: 'data.sn', order: 'descending' }"
+                @sort-change="onSortChange" v-el-scroll>
+        <template #empty>
+          <el-empty :description="search || filterCount ? '未找到匹配数据' : '暂无数据，点击「申请图号」新增'"
+                    :image-size="72" />
+        </template>
+        <el-table-column v-for="f in visibleFields" :key="f.key" :prop="'data.' + f.key"
+                         :label="f.label" sortable="custom"
+                         :align="f.key === 'sn' ? 'center' : 'left'"
+                         :width="f.key === 'sn' ? 72 : undefined"
+                         :min-width="colWidth(f)" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="f.key === 'sn'" class="tabular">{{ row.data.sn }}</span>
+            <template v-else-if="Array.isArray(row.data[f.key])">
+              <el-tag v-for="v in row.data[f.key]" :key="v" size="small" effect="plain"
+                      style="margin-right: 4px">{{ v }}</el-tag>
+            </template>
+            <el-tag v-else-if="f.type === 'switch'" size="small" :type="row.data[f.key] ? 'success' : 'info'">
+              {{ row.data[f.key] ? '开' : '关' }}
+            </el-tag>
+            <span v-else>{{ fmtCell(row.data[f.key]) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="store.authed" label="操作" width="92" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="onDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <!-- 分页模式 -->
+    <div v-if="mode === 'page'" class="card pagination-card">
+      <el-pagination v-model:current-page="page" :page-size="pageSize" :total="total"
+                     :page-sizes="[50, 100, 200]" layout="total, sizes, prev, pager, next, jumper"
+                     @update:current-page="load(false)" @update:page-size="onPageSize" />
+    </div>
+    <!-- 懒加载模式提示 -->
+    <div v-else-if="records.length" class="load-hint muted">
+      {{ hasMore ? '下拉加载更多…' : `已全部加载（${records.length} 条）` }}
+    </div>
+
+    <!-- 申请 / 编辑 -->
+    <RecordDialog v-model="recordVisible" :table="activeTable" :record="editing"
+                  :options="options" @saved="onSaved" />
+
+    <!-- 导入 -->
+    <el-dialog v-model="importVisible" title="导入 Excel（附加模式，不覆盖现有数据）"
+               width="520px" append-to-body destroy-on-close>
+      <template v-if="!importResult">
+        <el-upload drag :auto-upload="false" :limit="1" accept=".xlsx,.xls"
+                   :on-change="f => (importFile = f.raw)" :on-remove="() => (importFile = null)"
+                   class="import-upload">
+          <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+          <div class="el-upload__text">拖入或 <em>点击选择</em> Excel 文件</div>
+          <template #tip>
+            <div class="el-upload__tip muted">
+              第一行需为列标题，需与字段名一致；
+              <el-link type="primary" :underline="false" style="font-size:12px;vertical-align:baseline"
+                       @click="downloadTemplate">下载导入模板</el-link>
+            </div>
+          </template>
+        </el-upload>
+      </template>
+      <template v-else>
+        <el-result :icon="importResult.failed.length ? 'warning' : 'success'"
+                   :title="`成功导入 ${importResult.added} 条${importResult.failed.length ? '，失败 ' + importResult.failed.length + ' 条' : ''}`">
+          <template #extra>
+            <div v-if="importResult.ignored_columns?.length" class="muted" style="margin-bottom: 6px">
+              忽略的列：{{ importResult.ignored_columns.join('、') }}
+            </div>
+            <el-scrollbar v-if="importResult.failed.length" max-height="220px" class="import-fails">
+              <div v-for="f in importResult.failed" :key="f.row" class="fail-row">
+                第 {{ f.row }} 行：{{ f.reason }}
+              </div>
+            </el-scrollbar>
+          </template>
+        </el-result>
+      </template>
+      <template #footer>
+        <template v-if="!importResult">
+          <el-button @click="importVisible = false">取 消</el-button>
+          <el-button type="primary" :disabled="!importFile" :loading="importing" @click="doImport">开始导入</el-button>
+        </template>
+        <template v-else>
+          <el-button @click="importResult = null">继续导入</el-button>
+          <el-button type="primary" @click="importVisible = false">完 成</el-button>
+        </template>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Upload, Download, Search, Filter, Menu } from '@element-plus/icons-vue'
+import { http, downloadBlob } from '@/api'
+import { useApp } from '@/store'
+import RecordDialog from '@/components/RecordDialog.vue'
+import FilterPanel from '@/components/FilterPanel.vue'
+
+const store = useApp()
+
+const tables = ref([])
+const activeId = ref(null)
+const fields = ref([])
+const records = ref([])
+const total = ref(0)
+const hasMore = ref(false)
+const page = ref(1)
+const pageSize = ref(100)
+const mode = ref(localStorage.getItem('dc-view-mode') || 'lazy')
+const modeOptions = [
+  { label: '懒加载', value: 'lazy' },
+  { label: '分页', value: 'page' }
+]
+const search = ref('')
+const filters = ref({})
+const sortKey = ref('sn')
+const sortOrder = ref('desc')
+const loading = ref(false)
+const loadingMore = ref(false)
+const exporting = ref(false)
+const visibleKeys = ref([])
+const options = reactive({})
+const tableRef = ref()
+const filterRef = ref()
+
+const activeTable = computed(() => tables.value.find(t => t.id === activeId.value) || null)
+const filterCount = computed(() => Object.keys(filters.value).length)
+const visibleFields = computed(() => fields.value.filter(f => visibleKeys.value.includes(f.key)))
+
+/* ---------------- 数据加载 ---------------- */
+
+async function loadTables() {
+  const res = await http.get('/tables')
+  tables.value = res.tables
+  if (!tables.value.length) return
+  let saved = parseInt(localStorage.getItem('dc-active-table'))
+  if (!tables.value.some(t => t.id === saved)) saved = tables.value[0].id
+  activeId.value = saved
+  await onTableChange()
+}
+
+async function onTableChange() {
+  localStorage.setItem('dc-active-table', activeId.value)
+  const t = activeTable.value
+  fields.value = t ? t.fields : []
+  initVisibleKeys()
+  await loadOptions()
+  reload()
+}
+
+async function loadOptions() {
+  if (!activeId.value) return
+  try {
+    const res = await http.get(`/tables/${activeId.value}/options`)
+    Object.keys(options).forEach(k => delete options[k])
+    Object.assign(options, res.options)
+  } catch { /* 静默 */ }
+}
+
+function initVisibleKeys() {
+  const key = `dc-cols-${activeId.value}`
+  const saved = localStorage.getItem(key)
+  if (saved) {
+    try {
+      const list = JSON.parse(saved)
+      const valid = fields.value.filter(f => list.includes(f.key)).map(f => f.key)
+      const missing = fields.value.filter(f => !list.includes(f.key))
+        .filter(f => f.is_system).map(f => f.key)
+      visibleKeys.value = [...valid, ...missing]
+    } catch { visibleKeys.value = fields.value.map(f => f.key) }
+  } else {
+    visibleKeys.value = fields.value.map(f => f.key)
+  }
+}
+
+watch(visibleKeys, () => {
+  if (activeId.value) localStorage.setItem(`dc-cols-${activeId.value}`, JSON.stringify(visibleKeys.value))
+}, { deep: true })
+
+function allColumns(all) {
+  visibleKeys.value = all ? fields.value.map(f => f.key) : []
+}
+
+async function load(append = false) {
+  if (!activeId.value) return
+  if (append) loadingMore.value = true
+  else loading.value = true
+  try {
+    const params = {
+      search: search.value,
+      filters: JSON.stringify(filters.value),
+      sort: sortKey.value,
+      order: sortOrder.value,
+      page: page.value,
+      page_size: mode.value === 'page' ? pageSize.value : 50,
+      mode: mode.value
+    }
+    const res = await http.get(`/tables/${activeId.value}/records`, { params })
+    total.value = res.total
+    hasMore.value = res.has_more
+    if (append) records.value.push(...res.items)
+    else records.value = res.items
+  } finally {
+    loading.value = false
+    loadingMore.value = false
+  }
+}
+
+function reload() {
+  page.value = 1
+  load(false)
+}
+
+/* ---------------- 搜索 / 排序 / 懒加载 ---------------- */
+
+let searchTimer = null
+function onSearchDebounced() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(reload, 300)
+}
+
+function onSortChange({ prop, order }) {
+  if (order) {
+    sortKey.value = (prop || '').replace('data.', '')
+    sortOrder.value = order === 'ascending' ? 'asc' : 'desc'
+  } else {
+    sortKey.value = 'sn'
+    sortOrder.value = 'desc'
+  }
+  reload()
+}
+
+let scrollEl = null
+let scrollTimer = null
+function onBodyScroll() {
+  if (mode.value !== 'lazy' || !hasMore.value || loadingMore.value || loading.value) return
+  clearTimeout(scrollTimer)
+  scrollTimer = setTimeout(() => {
+    const el = document.querySelector('.table-card .el-scrollbar__wrap') ||
+               document.querySelector('.table-card .el-table__body-wrapper')
+    if (!el) return
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60) {
+      page.value++
+      load(true)
+    }
+  }, 80)
+}
+
+const vElScroll = {
+  mounted() {
+    /* 在 el-table 渲染后挂载滚动监听 */
+    setTimeout(() => {
+      scrollEl = document.querySelector('.table-card .el-scrollbar__wrap') ||
+                document.querySelector('.table-card .el-table__body-wrapper')
+      scrollEl?.addEventListener('scroll', onBodyScroll, { passive: true })
+    }, 500)
+  },
+  unmounted() {
+    scrollEl?.removeEventListener('scroll', onBodyScroll)
+  }
+}
+
+onMounted(loadTables)
+onBeforeUnmount(() => scrollEl?.removeEventListener('scroll', onBodyScroll))
+
+/* ---------------- 新增 / 编辑 / 删除 ---------------- */
+
+const recordVisible = ref(false)
+const editing = ref(null)
+
+function openCreate() {
+  editing.value = null
+  recordVisible.value = true
+}
+function openEdit(row) {
+  editing.value = row
+  recordVisible.value = true
+}
+
+async function onSaved() {
+  await loadOptions()
+  reload()
+  const t = activeTable.value
+  if (t) t.count = (t.count || 0) + 1
+}
+
+async function onDelete(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除该记录吗？图号「${row.data.drawing_no || row.data.name || ''}」将被移除。`,
+      '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  await http.delete(`/records/${row.id}`)
+  ElMessage.success('记录已删除')
+  reload()
+  const t = activeTable.value
+  if (t) t.count = Math.max(0, (t.count || 1) - 1)
+  await loadOptions()
+}
+
+/* ---------------- 导入 / 导出 ---------------- */
+
+const importVisible = ref(false)
+const importFile = ref(null)
+const importing = ref(false)
+const importResult = ref(null)
+
+async function doImport() {
+  if (!importFile.value) return
+  importing.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', importFile.value)
+    const res = await http.post(`/tables/${activeId.value}/import`, fd)
+    importResult.value = res
+    await loadOptions()
+    await loadTablesRefreshCount()
+  } finally {
+    importing.value = false
+  }
+}
+
+async function loadTablesRefreshCount() {
+  const res = await http.get('/tables')
+  tables.value = res.tables
+}
+
+async function downloadTemplate() {
+  const res = await http.get(`/tables/${activeId.value}/template`, { responseType: 'blob' })
+  downloadBlob(res, `导入模板_${activeTable.value?.name || ''}.xlsx`)
+}
+
+function exportParams() {
+  return {
+    search: search.value,
+    filters: JSON.stringify(filters.value),
+    sort: sortKey.value,
+    order: sortOrder.value
+  }
+}
+
+async function doExport() {
+  exporting.value = true
+  try {
+    const res = await http.get(`/tables/${activeId.value}/export`,
+      { params: exportParams(), responseType: 'blob' })
+    downloadBlob(res, `${activeTable.value?.name || '数据'}_导出.xlsx`)
+    ElMessage.success('导出成功')
+  } finally {
+    exporting.value = false
+  }
+}
+
+function onPageSize(size) {
+  pageSize.value = size
+  reload()
+}
+
+watch(mode, v => localStorage.setItem('dc-view-mode', v))
+
+/* ---------------- 渲染辅助 ---------------- */
+
+function colWidth(f) {
+  return {
+    text: 150, textarea: 200, number: 120, select: 150, multi_select: 180,
+    radio: 150, checkbox: 180, switch: 90, date: 130, datetime: 175
+  }[f.type] || 150
+}
+
+function fmtCell(v) {
+  if (v === null || v === undefined) return ''
+  if (Array.isArray(v)) return v.join('、')
+  return String(v)
+}
+</script>
+
+<style scoped>
+.data-page { height: 100%; overflow: hidden; }
+
+.tabs-card { padding: 4px 12px 0; flex: none; }
+.dc-tabs :deep(.el-tabs__header) { margin: 0; }
+.dc-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }
+.dc-tabs :deep(.el-tabs__item) {
+  height: 42px; padding: 0 14px;
+  color: var(--dc-text-soft);
+}
+.dc-tabs :deep(.el-tabs__item.is-active) { color: var(--dc-primary); font-weight: 600; }
+.dc-tabs :deep(.el-tabs__active-bar) { height: 3px; border-radius: 2px; }
+.tab-label { display: inline-flex; align-items: center; gap: 5px; max-width: 240px; }
+.tab-count {
+  background: var(--dc-primary-soft); color: var(--dc-primary);
+  border-radius: 9px; padding: 0 7px; font-size: 11px; line-height: 17px;
+}
+
+.toolbar {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; padding: 10px 12px; flex-wrap: wrap; flex: none;
+}
+.toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.search-input { width: 230px; }
+.total-hint { white-space: nowrap; }
+.mode-seg :deep(.el-segmented) { --el-border-radius-base: 6px; }
+
+.table-card { flex: 1; min-height: 200px; overflow: hidden; padding: 6px 6px 2px; }
+
+.pagination-card { padding: 8px 12px; flex: none; display: flex; justify-content: flex-end; }
+.load-hint { text-align: center; font-size: 12px; padding: 6px 0 2px; flex: none; }
+
+.cols-pop .cols-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--dc-border);
+}
+.cols-pop .el-checkbox-group { display: flex; flex-direction: column; gap: 2px; }
+
+.import-upload { width: 100%; }
+.import-fails .fail-row {
+  font-size: 13px; color: var(--dc-text);
+  padding: 5px 8px; border-radius: 6px; margin-bottom: 4px;
+  background: var(--dc-bg-soft); text-align: left;
+}
+
+@media (max-width: 768px) {
+  .data-page { overflow-y: auto; }
+  .table-card { min-height: 55vh; }
+  .search-input { width: 100%; }
+  .toolbar-left, .toolbar-right { width: 100%; }
+}
+</style>
