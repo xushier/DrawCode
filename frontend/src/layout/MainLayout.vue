@@ -1,7 +1,7 @@
 <template>
   <el-container class="layout">
     <!-- 侧边栏（桌面） -->
-    <el-aside width="224px" class="aside">
+    <el-aside :width="collapsed ? '64px' : '224px'" class="aside" :class="{ 'aside-collapsed': collapsed }">
       <div class="brand" @click="aboutOpen = true" title="点击查看系统信息">
         <Logo :size="36" />
         <div class="brand-text">
@@ -9,13 +9,13 @@
           <div class="brand-sub">{{ store.site.subtitle }}</div>
         </div>
       </div>
-      <el-menu :default-active="route.path" router class="menu" :collapse="false">
+      <el-menu :default-active="route.path" router class="menu" :collapse="collapsed" :collapse-transition="false">
         <el-menu-item v-for="m in menus" :key="m.path" :index="m.path">
           <el-icon><component :is="m.icon" /></el-icon>
           <span>{{ m.title }}</span>
         </el-menu-item>
       </el-menu>
-      <div class="aside-foot muted" v-if="!store.authed">访客模式浏览中</div>
+      <div class="aside-foot muted" v-if="!store.authed && !collapsed">访客模式浏览中</div>
     </el-aside>
 
     <el-container class="main-wrap">
@@ -23,6 +23,9 @@
       <el-header class="header" height="56px">
         <div class="header-left">
           <el-icon class="menu-btn" @click="drawer = true"><Expand /></el-icon>
+          <span class="icon-btn fold-btn" :title="collapsed ? '展开侧边栏' : '折叠侧边栏'" @click="toggleCollapse">
+            <el-icon><Fold v-if="!collapsed" /><Expand v-else /></el-icon>
+          </span>
           <span class="header-title">{{ route.meta.title }}</span>
           <el-tag v-if="!store.authed" size="small" type="info" effect="plain">访客</el-tag>
         </div>
@@ -109,6 +112,13 @@ const drawer = ref(false)
 const aboutOpen = ref(false)
 const pageRef = ref(null)
 
+// 侧边栏折叠（本地记忆）
+const collapsed = ref(localStorage.getItem('dc-collapsed') === '1')
+function toggleCollapse() {
+  collapsed.value = !collapsed.value
+  localStorage.setItem('dc-collapsed', collapsed.value ? '1' : '0')
+}
+
 const menus = computed(() =>
   [
     { path: '/', title: '仪表盘', icon: 'Odometer' },
@@ -150,13 +160,19 @@ defineExpose({ refreshAvatar })
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  transition: width .22s ease;
 }
+/* 品牌区与顶栏等高对齐（56px） */
 .brand {
   display: flex; align-items: center; gap: 10px;
-  padding: 14px 16px; cursor: pointer;
+  height: 56px; padding: 0 16px; cursor: pointer;
   border-bottom: 1px solid var(--dc-border);
   flex: none;
 }
+/* 折叠态：仅居中显示 Logo */
+.aside-collapsed .brand { justify-content: center; padding: 0; gap: 0; }
+.aside-collapsed .brand-text { display: none; }
+.aside-collapsed .aside-foot { display: none; }
 .brand-text { min-width: 0; }
 .brand-name {
   font-size: 17px; font-weight: 700; line-height: 1.2;
@@ -173,6 +189,8 @@ defineExpose({ refreshAvatar })
   flex: 1;
   overflow-y: auto;
 }
+/* 折叠态：去掉左右内边距，64px 菜单完整容纳 */
+.aside-collapsed .menu { padding: 8px 0; }
 .menu :deep(.el-menu-item) {
   border-radius: 8px; height: 44px; margin: 2px 0;
   color: var(--dc-text-soft);
@@ -207,6 +225,12 @@ defineExpose({ refreshAvatar })
 .icon-btn:hover { background: var(--dc-primary-soft); color: var(--dc-primary); }
 .menu-btn { display: none; font-size: 19px; cursor: pointer; color: var(--dc-text); }
 
+.drawer-brand {
+  display: flex; align-items: center; gap: 10px;
+  height: 56px; padding: 0 16px; cursor: pointer;
+  border-bottom: 1px solid var(--dc-border); margin-bottom: 8px;
+}
+
 .user-btn {
   display: flex; align-items: center; gap: 7px; cursor: pointer;
   padding: 4px 8px; border-radius: 8px; outline: none;
@@ -223,12 +247,6 @@ defineExpose({ refreshAvatar })
 }
 .main :deep(> *) { width: 100%; }
 
-.drawer-brand {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px; cursor: pointer;
-  border-bottom: 1px solid var(--dc-border); margin-bottom: 8px;
-}
-
 .theme-dot {
   width: 12px; height: 12px; border-radius: 4px;
   display: inline-block; margin-right: 8px;
@@ -238,6 +256,7 @@ defineExpose({ refreshAvatar })
 @media (max-width: 768px) {
   .aside { display: none; }
   .menu-btn { display: inline-flex; }
+  .fold-btn { display: none; }
   .user-name { display: none; }
 }
 </style>
