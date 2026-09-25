@@ -19,7 +19,6 @@
           </el-link>
         </div>
       </div>
-      <el-divider style="margin: 12px 0" />
       <div class="about-changelog muted">更新内容</div>
       <el-timeline style="padding: 8px 4px 0">
         <el-timeline-item
@@ -56,7 +55,7 @@ const show = computed({
 .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-top: 16px; }
 .about-item { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .about-item b { color: var(--dc-text); font-weight: 600; }
-.about-changelog { font-size: 13px; margin-bottom: 2px; }
+.about-changelog { font-size: 13px; margin: 20px 0 2px; }
 .about-log { margin: 0; padding: 0 0 0 4px; list-style: none; }
 .about-log li {
   font-size: 13px;

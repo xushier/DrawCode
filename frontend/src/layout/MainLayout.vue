@@ -85,7 +85,7 @@
           <div class="brand-sub">{{ store.site.subtitle }}</div>
         </div>
       </div>
-      <el-menu :default-active="route.path" router @select="drawer = false">
+      <el-menu :default-active="route.path" router class="menu" @select="drawer = false">
         <el-menu-item v-for="m in menus" :key="m.path" :index="m.path">
           <el-icon><component :is="m.icon" /></el-icon>
           <span>{{ m.title }}</span>
@@ -189,11 +189,14 @@ defineExpose({ refreshAvatar })
   flex: 1;
   overflow-y: auto;
 }
-/* 折叠态：去掉左右内边距，64px 菜单完整容纳 */
-.aside-collapsed .menu { padding: 8px 0; }
+/* 折叠态：菜单项 44px 居中，选中胶囊不贴边 */
+.aside-collapsed .menu { padding: 8px 10px; }
 .menu :deep(.el-menu-item) {
   border-radius: 8px; height: 44px; margin: 2px 0;
   color: var(--dc-text-soft);
+}
+.aside-collapsed .menu :deep(.el-menu-item) {
+  width: 44px; min-width: 44px; margin: 4px auto;
 }
 .menu :deep(.el-menu-item:hover) { background: var(--dc-primary-soft); }
 .menu :deep(.el-menu-item.is-active) {

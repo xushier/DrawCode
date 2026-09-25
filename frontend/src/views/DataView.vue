@@ -19,6 +19,10 @@
     <div class="card toolbar">
       <div class="toolbar-left">
         <el-button type="primary" :icon="Plus" @click="openCreate">申请图号</el-button>
+        <el-button v-if="store.authed && selMode !== 'none' && selectedRows.length"
+                   type="danger" plain :icon="Delete" @click="onBatchDelete">
+          删除选中（{{ selectedRows.length }}）
+        </el-button>
         <el-button v-if="store.authed" :icon="Upload" @click="importVisible = true">导入</el-button>
         <el-button :icon="Download" :loading="exporting" @click="doExport">导出</el-button>
       </div>
@@ -34,7 +38,7 @@
           <FilterPanel :key="activeId" ref="filterRef" v-model="filters"
                        :fields="fields" :options="options" @update:model-value="reload" />
         </el-popover>
-        <el-popover :width="220" trigger="click">
+        <el-popover :width="260" trigger="click">
           <template #reference>
             <el-button :icon="Menu">列设置</el-button>
           </template>
@@ -48,6 +52,15 @@
                 {{ f.label }}
               </el-checkbox>
             </el-checkbox-group>
+            <div class="pop-sec muted">表格外观</div>
+            <div class="pop-row">
+              <span>竖向边框</span>
+              <el-switch v-model="vBorder" size="small" />
+            </div>
+            <div class="pop-row">
+              <span>选择行</span>
+              <el-segmented v-model="selMode" :options="selOptions" size="small" />
+            </div>
           </div>
         </el-popover>
         <el-segmented v-model="mode" :options="modeOptions" size="default"
@@ -58,14 +71,24 @@
 
     <!-- 数据表 -->
     <div class="card table-card" v-loading="loading">
-      <el-table ref="tableRef" :data="records" stripe size="small" class="dc-table"
+      <el-table ref="tableRef" :data="records" stripe size="small"
+                class="dc-table" :class="{ 'v-border': vBorder }"
                 height="100%" :row-key="r => r.id"
+                :highlight-current-row="selMode === 'single'"
                 :default-sort="{ prop: 'data.sn', order: 'descending' }"
-                @sort-change="onSortChange" v-el-scroll>
+                @sort-change="onSortChange" @row-click="onRowClick"
+                @selection-change="onSelectionChange" v-el-scroll>
         <template #empty>
           <el-empty :description="search || filterCount ? '未找到匹配数据' : '暂无数据，点击「申请图号」新增'"
                     :image-size="72" />
         </template>
+        <el-table-column v-if="selMode === 'multi'" type="selection" width="42" />
+        <el-table-column v-if="selMode === 'single'" label="" width="42" align="center">
+          <template #default="{ row }">
+            <el-radio :model-value="selSingleId" :value="row.id"
+                      @update:model-value="v => (selSingleId = v)" />
+          </template>
+        </el-table-column>
         <el-table-column v-for="f in visibleFields" :key="f.key" :prop="'data.' + f.key"
                          :label="f.label" sortable="custom"
                          :align="f.key === 'sn' ? 'center' : 'left'"
@@ -83,10 +106,10 @@
             <span v-else>{{ fmtCell(row.data[f.key]) }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="store.authed" label="操作" width="92" fixed="right" align="center">
+        <el-table-column v-if="store.authed" label="操作" width="116" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="danger" size="small" @click="onDelete(row)">删除</el-button>
+            <el-button size="small" type="primary" text bg @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" type="danger" text bg @click="onDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -157,7 +180,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Upload, Download, Search, Filter, Menu } from '@element-plus/icons-vue'
+import { Plus, Upload, Download, Search, Filter, Menu, Delete } from '@element-plus/icons-vue'
 import { http, downloadBlob } from '@/api'
 import { useApp } from '@/store'
 import RecordDialog from '@/components/RecordDialog.vue'
@@ -189,6 +212,30 @@ const visibleKeys = ref([])
 const options = reactive({})
 const tableRef = ref()
 const filterRef = ref()
+
+/* 表格外观：竖向边框 + 选择行（无 / 单选 / 多选），本地记忆 */
+const vBorder = ref(localStorage.getItem('dc-vborder') !== '0')
+const selMode = ref(localStorage.getItem('dc-selmode') || 'none')
+const selOptions = [
+  { label: '无', value: 'none' },
+  { label: '单选', value: 'single' },
+  { label: '多选', value: 'multi' }
+]
+const selection = ref([])
+const selSingleId = ref(null)
+watch(vBorder, v => localStorage.setItem('dc-vborder', v ? '1' : '0'))
+watch(selMode, v => {
+  localStorage.setItem('dc-selmode', v)
+  selection.value = []
+  selSingleId.value = null
+})
+const selectedRows = computed(() =>
+  selMode.value === 'multi' ? selection.value
+    : selSingleId.value ? [records.value.find(r => r.id === selSingleId.value)].filter(Boolean)
+    : [])
+
+function onSelectionChange(rows) { selection.value = rows }
+function onRowClick(row) { if (selMode.value === 'single') selSingleId.value = row.id }
 
 const activeTable = computed(() => tables.value.find(t => t.id === activeId.value) || null)
 const filterCount = computed(() => Object.keys(filters.value).length)
@@ -365,6 +412,24 @@ async function onDelete(row) {
   await loadOptions()
 }
 
+async function onBatchDelete() {
+  const rows = selectedRows.value
+  if (!rows.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${rows.length} 条记录吗？删除后不可恢复。`,
+      '批量删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  for (const r of rows) await http.delete(`/records/${r.id}`)
+  ElMessage.success(`已删除 ${rows.length} 条记录`)
+  selection.value = []
+  selSingleId.value = null
+  reload()
+  const t = activeTable.value
+  if (t) t.count = Math.max(0, (t.count || 0) - rows.length)
+  await loadOptions()
+}
+
 /* ---------------- 导入 / 导出 ---------------- */
 
 const importVisible = ref(false)
@@ -444,19 +509,25 @@ function fmtCell(v) {
 <style scoped>
 .data-page { height: 100%; overflow: hidden; }
 
-.tabs-card { padding: 4px 12px 0; flex: none; }
+.tabs-card { padding: 6px 10px; flex: none; }
 .dc-tabs :deep(.el-tabs__header) { margin: 0; }
 .dc-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }
+.dc-tabs :deep(.el-tabs__active-bar) { display: none; }
+.dc-tabs :deep(.el-tabs__nav) { gap: 4px; }
 .dc-tabs :deep(.el-tabs__item) {
-  height: 42px; padding: 0 14px;
-  color: var(--dc-text-soft);
+  height: 36px; line-height: 36px; padding: 0 16px;
+  border-radius: 8px; color: var(--dc-text-soft);
+  transition: background .15s, color .15s;
 }
-.dc-tabs :deep(.el-tabs__item.is-active) { color: var(--dc-primary); font-weight: 600; }
-.dc-tabs :deep(.el-tabs__active-bar) { height: 3px; border-radius: 2px; }
+.dc-tabs :deep(.el-tabs__item:hover) { color: var(--dc-primary); }
+.dc-tabs :deep(.el-tabs__item.is-active) {
+  background: var(--dc-primary-soft); color: var(--dc-primary); font-weight: 600;
+}
 .tab-label { display: inline-flex; align-items: center; gap: 5px; max-width: 240px; }
 .tab-count {
-  background: var(--dc-primary-soft); color: var(--dc-primary);
-  border-radius: 9px; padding: 0 7px; font-size: 11px; line-height: 17px;
+  background: color-mix(in srgb, var(--dc-primary) 16%, transparent);
+  color: var(--dc-primary);
+  border-radius: 999px; padding: 0 8px; font-size: 11px; line-height: 17px;
 }
 
 .toolbar {
@@ -466,18 +537,22 @@ function fmtCell(v) {
 .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .search-input { width: 230px; }
 .total-hint { white-space: nowrap; }
-.mode-seg :deep(.el-segmented) { --el-border-radius-base: 6px; }
 
-.table-card { flex: 1; min-height: 200px; overflow: hidden; padding: 6px 6px 2px; }
+.table-card { flex: 1; min-height: 200px; overflow: hidden; padding: 0; }
 
 .pagination-card { padding: 8px 12px; flex: none; display: flex; justify-content: flex-end; }
 .load-hint { text-align: center; font-size: 12px; padding: 6px 0 2px; flex: none; }
 
 .cols-pop .cols-head {
   display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--dc-border);
+  margin-bottom: 6px;
 }
 .cols-pop .el-checkbox-group { display: flex; flex-direction: column; gap: 2px; }
+.pop-sec { margin: 10px 0 4px; font-size: 12px; }
+.pop-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0; font-size: 13px; color: var(--dc-text);
+}
 
 .import-upload { width: 100%; }
 .import-fails .fail-row {
@@ -491,5 +566,7 @@ function fmtCell(v) {
   .table-card { min-height: 55vh; }
   .search-input { width: 100%; }
   .toolbar-left, .toolbar-right { width: 100%; }
+  .dc-tabs :deep(.el-tabs__item) { padding: 0 10px; }
+  .tab-label { max-width: 160px; }
 }
 </style>

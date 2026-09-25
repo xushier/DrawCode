@@ -17,7 +17,6 @@
               <el-switch v-model="guestModeBool" />
               <div class="field-hint muted">开启后，未登录的访客可浏览图号数据并申请图号（仅新增）</div>
             </el-form-item>
-            <el-divider style="margin: 8px 0 18px" />
             <el-form-item label="日志自动清理">
               <div class="inline-row">
                 <el-switch v-model="logAutoBool" />
@@ -52,11 +51,11 @@
             <el-table-column label="字段数" width="90" align="center">
               <template #default="{ row }">{{ row.fields?.length || 0 }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="220" align="center">
+            <el-table-column label="操作" width="232" align="center">
               <template #default="{ row }">
-                <el-button link type="primary" size="small" @click="openFields(row)">字段管理</el-button>
-                <el-button link size="small" @click="renameTable(row)">重命名</el-button>
-                <el-button v-if="!row.is_system" link type="danger" size="small" @click="deleteTable(row)">删除</el-button>
+                <el-button size="small" type="primary" text bg @click="openFields(row)">字段管理</el-button>
+                <el-button size="small" text bg @click="renameTable(row)">重命名</el-button>
+                <el-button v-if="!row.is_system" size="small" type="danger" text bg @click="deleteTable(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -139,7 +138,6 @@
               <el-icon v-if="store.theme === t.id" class="theme-check"><Check /></el-icon>
             </div>
           </div>
-          <el-divider style="margin: 6px 0 16px" />
           <div class="dark-row">
             <div>
               <div>暗色模式</div>
@@ -183,8 +181,7 @@
               </div>
             </el-col>
           </el-row>
-          <el-divider style="margin: 8px 0 18px" />
-          <el-button type="danger" plain :icon="SwitchButton" @click="doLogout">退出登录</el-button>
+          <el-button type="danger" plain :icon="SwitchButton" class="logout-btn" @click="doLogout">退出登录</el-button>
         </div>
       </el-tab-pane>
 
@@ -207,8 +204,7 @@
               <el-link type="primary" :href="store.site.github" target="_blank">{{ store.site.github }}</el-link>
             </div>
           </div>
-          <el-divider style="margin: 6px 0 14px" />
-          <div class="muted" style="margin-bottom: 8px">更新内容</div>
+          <div class="muted about-log-title">更新内容</div>
           <div v-for="log in store.site.changelog" :key="log.version" class="changelog">
             <b>v{{ log.version }}（{{ log.date }}）</b>
             <ul>
@@ -276,10 +272,10 @@
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="110" align="center">
+        <el-table-column label="操作" width="116" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openFieldEdit(row)">编辑</el-button>
-            <el-button v-if="!row.is_system" link type="danger" size="small" @click="deleteField(row)">删除</el-button>
+            <el-button size="small" type="primary" text bg @click="openFieldEdit(row)">编辑</el-button>
+            <el-button v-if="!row.is_system" size="small" type="danger" text bg @click="deleteField(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -582,21 +578,39 @@ onMounted(() => {
 .settings-tabs { height: 100%; background: transparent; }
 .settings-tabs :deep(.el-tabs__header.is-left) {
   width: 132px; margin-right: 14px; background: var(--dc-card);
-  border: 1px solid var(--dc-border); border-radius: 10px; padding: 8px; height: fit-content;
+  border: 1px solid var(--dc-border); border-radius: var(--dc-radius);
+  padding: 8px; height: fit-content;
 }
-.settings-tabs :deep(.el-tabs__item) { height: 42px; justify-content: flex-start; color: var(--dc-text-soft); }
-.settings-tabs :deep(.el-tabs__item.is-active) { color: var(--dc-primary); font-weight: 600; }
+.settings-tabs :deep(.el-tabs__active-bar) { display: none; }
+.settings-tabs :deep(.el-tabs__item) {
+  height: 38px; line-height: 38px; justify-content: flex-start;
+  padding: 0 14px; margin: 2px 0; border-radius: 8px;
+  color: var(--dc-text-soft); transition: background .15s, color .15s;
+}
+.settings-tabs :deep(.el-tabs__item:hover) { color: var(--dc-primary); }
+.settings-tabs :deep(.el-tabs__item.is-active) {
+  background: var(--dc-primary-soft); color: var(--dc-primary); font-weight: 600;
+}
 .settings-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }
 .settings-tabs :deep(.el-tabs__content) { overflow-y: auto; height: 100%; }
 .pane {
   background: var(--dc-card); border: 1px solid var(--dc-border);
-  border-radius: 10px; padding: 20px; min-height: calc(100vh - 180px);
+  border-radius: var(--dc-radius); padding: 20px; min-height: calc(100vh - 180px);
 }
+/* 移动端：tabs 变为顶部横滑胶囊条，内容不贴边、不换行 */
 .settings-tabs.is-mobile :deep(.el-tabs__header.is-left) {
-  width: 100%; margin: 0 0 10px;
+  width: 100%; margin: 0 0 10px; padding: 6px;
 }
-.settings-tabs.is-mobile :deep(.el-tabs__nav) { display: flex; width: 100%; }
-.settings-tabs.is-mobile :deep(.el-tabs__item) { flex: 1; padding: 0 4px; }
+.settings-tabs.is-mobile :deep(.el-tabs__nav) {
+  display: flex; gap: 4px; width: 100%;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.settings-tabs.is-mobile :deep(.el-tabs__nav::-webkit-scrollbar) { display: none; }
+.settings-tabs.is-mobile :deep(.el-tabs__item) {
+  flex: none; height: 32px; line-height: 32px; margin: 0;
+  padding: 0 13px; font-size: 13px; white-space: nowrap;
+}
 
 .pane-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
 .pane-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
@@ -605,21 +619,23 @@ onMounted(() => {
 .field-hint { font-size: 12px; width: 100%; margin-top: 3px; }
 .inline-row { display: flex; align-items: center; gap: 10px; }
 
-.theme-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 180px)); gap: 12px; }
+.theme-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 180px)); gap: 12px; margin-bottom: 16px; }
 .theme-card {
-  position: relative; border: 2px solid var(--dc-border); border-radius: 10px;
+  position: relative; border: 2px solid var(--dc-border); border-radius: var(--dc-radius);
   padding: 12px 10px; cursor: pointer; text-align: center; transition: all .18s;
 }
 .theme-card:hover { border-color: var(--dc-primary); }
 .theme-card.active { border-color: var(--dc-primary); background: var(--dc-primary-soft); }
 .theme-colors { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; }
-.theme-colors span { width: 30px; height: 14px; border-radius: 4px; display: block; }
+.theme-colors span { width: 30px; height: 14px; border-radius: 6px; display: block; }
 .theme-name { font-size: 13px; font-weight: 600; }
 .theme-check { position: absolute; top: 6px; right: 8px; color: var(--dc-primary); }
 .dark-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 14px; border: 1px solid var(--dc-border); border-radius: 10px; max-width: 420px;
+  padding: 12px 14px; border: 1px solid var(--dc-border); border-radius: var(--dc-radius); max-width: 420px;
 }
+.logout-btn { margin-top: 18px; }
+.about-log-title { margin: 20px 0 8px; }
 
 .avatar-box { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; max-width: 260px; }
 

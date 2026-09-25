@@ -20,7 +20,9 @@ export const useApp = defineStore('app', {
       name: '智能图号系统', subtitle: '智能装备研究院图号系统', org: '智能装备研究院',
       version: '', changelog: [], github: '', author: ''
     },
-    theme: localStorage.getItem('dc-theme') || 'lan',
+    // 主题：本地记忆（非法值回退默认主题）
+    theme: THEMES.some(t => t.id === localStorage.getItem('dc-theme'))
+      ? localStorage.getItem('dc-theme') : 'lan',
     dark: localStorage.getItem('dc-dark') === '1'
   }),
   getters: {
@@ -33,6 +35,16 @@ export const useApp = defineStore('app', {
       document.documentElement.classList.toggle('dark', this.dark)
       localStorage.setItem('dc-theme', this.theme)
       localStorage.setItem('dc-dark', this.dark ? '1' : '0')
+      // 防御外部环境（部分内嵌浏览器/插件）覆写 data-theme，导致主题变量失效
+      if (!this._themeGuard) {
+        this._themeGuard = new MutationObserver(() => {
+          if (document.documentElement.dataset.theme !== this.theme)
+            document.documentElement.dataset.theme = this.theme
+        })
+        this._themeGuard.observe(document.documentElement, {
+          attributes: true, attributeFilter: ['data-theme']
+        })
+      }
     },
     setTheme(id) {
       this.theme = id

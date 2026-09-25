@@ -360,7 +360,10 @@ def create_app():
     def send_index():
         index = os.path.join(FRONTEND_DIST, "index.html")
         if os.path.exists(index):
-            return send_from_directory(FRONTEND_DIST, "index.html")
+            # HTML 禁用缓存，确保发版后浏览器总能拿到最新前端入口
+            resp = send_from_directory(FRONTEND_DIST, "index.html", max_age=0)
+            resp.headers["Cache-Control"] = "no-cache"
+            return resp
         return "<h3>DrawCode</h3><p>前端未构建，请先执行 npm run build</p>", 200
 
     @app.get("/")

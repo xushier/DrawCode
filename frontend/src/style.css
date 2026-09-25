@@ -1,7 +1,14 @@
-/* 全局样式：字体统一（苹方及类苹方）、对齐、紧凑表格、滚动 */
+/* 全局样式：字体统一（苹方及类苹方）、对齐、统一圆角体系、紧凑表格、滚动 */
+
+/* ---------- 设计令牌：统一圆角体系 ---------- */
+/* 层级：6px(标签/小件) → 8px(按钮/输入框) → 10px(卡片/表格/弹出层) → 14px(弹窗/抽屉) */
 :root {
   --dc-font: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC",
     "Noto Sans CJK SC", "Microsoft YaHei", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --dc-radius: 10px;
+  --dc-radius-lg: 14px;
 }
 
 * { box-sizing: border-box; }
@@ -45,7 +52,7 @@ body {
 .card {
   background: var(--dc-card);
   border: 1px solid var(--dc-border);
-  border-radius: 10px;
+  border-radius: var(--dc-radius);
   box-shadow: var(--dc-shadow);
 }
 .card-pad { padding: 16px; }
@@ -55,6 +62,8 @@ body {
 .dc-table.el-table {
   --el-table-row-hover-bg-color: var(--dc-primary-soft);
   font-size: 13px;
+  border-radius: var(--dc-radius);
+  overflow: hidden;
 }
 .dc-table.el-table .el-table__header th {
   background: var(--dc-bg-soft) !important;
@@ -73,16 +82,37 @@ body {
   text-overflow: ellipsis;
 }
 .dc-table .el-table__empty-block { min-height: 120px; }
+/* 竖向边框模式（列分隔线） */
+.dc-table.v-border .el-table__cell { border-right: 1px solid var(--dc-border); }
+.dc-table.v-border .el-table__cell:last-child { border-right: none; }
+/* 单选 / 多选列 */
+.dc-table .el-table__cell .el-radio { margin-right: 0; height: auto; }
 
 /* 斑马纹交由组件 stripe，浅主题下再弱化一次 */
 html.dark .dc-table.el-table .el-table__tr.bg-row td.el-table__cell {
   background: var(--dc-bg-soft) !important;
 }
 
-/* ---------- 弹窗 ---------- */
-.el-dialog {
-  border-radius: 12px;
+/* ---------- 弹层圆角统一 ---------- */
+.el-dialog { border-radius: var(--dc-radius-lg); }
+.el-message-box { border-radius: var(--dc-radius-lg); }
+.el-notification { border-radius: var(--dc-radius-lg); }
+.el-popper.is-light { border-radius: var(--dc-radius); }
+.el-popper.is-dark { border-radius: 8px; }
+.el-drawer.rtl { border-radius: var(--dc-radius-lg) 0 0 var(--dc-radius-lg); }
+.el-drawer.ltr { border-radius: 0 var(--dc-radius-lg) var(--dc-radius-lg) 0; }
+.el-upload-dragger { border-radius: var(--dc-radius); }
+
+/* 下拉菜单：内缩胶囊条目 */
+.el-dropdown-menu { padding: 5px; }
+.el-dropdown-menu .el-dropdown-menu__item {
+  border-radius: 6px;
+  line-height: 30px;
+  padding: 0 12px;
+  margin: 1px 0;
 }
+
+/* ---------- 弹窗 ---------- */
 .el-dialog__header {
   margin: 0;
   padding: 14px 20px;
