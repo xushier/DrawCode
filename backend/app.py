@@ -205,6 +205,11 @@ def create_app():
         D.sys_log("INFO", "SETTINGS", f"更新设置: {', '.join(changed)}")
         return jsonify(ok=True)
 
+    # ---------- 外观（公开接口：访客也需读取表格边框开关） ----------
+    @app.get("/api/appearance")
+    def appearance():
+        return jsonify(ok=True, vborder=D.get_setting("table_vborder") == "1")
+
     # ---------- 仪表盘 ----------
     @app.get("/api/dashboard")
     @read_required
@@ -257,6 +262,46 @@ def create_app():
                        recent=[dict(r, data=json.loads(r["data"])) for r in recent],
                        ranking=[{"name": k, "count": v} for k, v in ranking],
                        project_ranking=[{"name": k, "count": v} for k, v in project_ranking])
+
+    @app.get("/api/dashboard/calendar")
+    @read_required
+    def dash_calendar():
+        """按月返回每日新增数据量（热力图日历用）"""
+        month = (request.args.get("month") or
+                 datetime.now().strftime("%Y-%m")).strip()
+        if not re.match(r"^\d{4}-\d{2}$", month):
+            return jsonify(ok=False, message="月份格式应为 YYYY-MM"), 400
+        rows = D.query(
+            "SELECT substr(created_at, 1, 10) d, COUNT(*) c FROM records "
+            "WHERE created_at LIKE ? GROUP BY substr(created_at, 1, 10)",
+            (month + "%",))
+        return jsonify(ok=True, month=month,
+                       days={r["d"]: r["c"] for r in rows})
+
+    @app.get("/api/dashboard/day")
+    @read_required
+    def dash_day():
+        """某天新增 / 修改的记录列表（日历点击弹窗用）"""
+        date = (request.args.get("date") or
+                datetime.now().strftime("%Y-%m-%d")).strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            return jsonify(ok=False, message="日期格式应为 YYYY-MM-DD"), 400
+        rows = D.query(
+            "SELECT r.id, r.table_id, r.data, r.created_at, r.updated_at, t.name table_name "
+            "FROM records r JOIN tables t ON t.id = r.table_id "
+            "WHERE r.created_at LIKE ? OR r.updated_at LIKE ? "
+            "ORDER BY r.id DESC LIMIT 500",
+            (date + "%", date + "%"))
+        items = []
+        for r in rows:
+            try:
+                data = json.loads(r["data"])
+            except Exception:
+                data = {}
+            items.append(dict(r, data=data,
+                              kind="add" if (r["created_at"] or "").startswith(date)
+                              else "update"))
+        return jsonify(ok=True, date=date, items=items)
 
     # ---------- 操作记录 ----------
     @app.get("/api/ops")

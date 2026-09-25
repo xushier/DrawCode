@@ -4,31 +4,33 @@
       <!-- 基本设置 -->
       <el-tab-pane label="基本设置" name="basic">
         <div class="pane">
-          <div class="pane-title">基本设置</div>
-          <el-form label-width="120px" class="set-form">
-            <el-form-item label="机构名称">
-              <el-input v-model="form.site_org" placeholder="如：智能装备研究院" style="max-width: 320px" />
-              <div class="field-hint muted">
-                系统全称：智能「{{ form.site_org }}」图号系统 · 副标题：「{{ form.site_org }}」图号系统
-              </div>
-            </el-form-item>
-            <el-form-item label="访客模式">
-              <el-switch v-model="guestModeBool" />
-              <div class="field-hint muted">开启后，未登录的访客可浏览图号数据并申请图号（仅新增）</div>
-            </el-form-item>
-            <el-form-item label="日志自动清理">
-              <div class="inline-row">
-                <el-switch v-model="logAutoBool" />
-                <el-input-number v-model="form.log_retention_days" :min="1" :max="365"
-                                 :disabled="!logAutoBool" controls-position="right" style="width: 120px" />
-                <span class="muted">天</span>
-              </div>
-              <div class="field-hint muted">系统日志将定期自动清理，保留最近指定天数的记录</div>
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" :loading="saving" @click="saveBasic">保存设置</el-button>
-            </el-form-item>
-          </el-form>
+          <div class="pane-center">
+            <div class="pane-title">基本设置</div>
+            <el-form label-width="120px" class="set-form">
+              <el-form-item label="机构名称">
+                <el-input v-model="form.site_org" placeholder="如：智能装备研究院" style="max-width: 320px" />
+                <div class="field-hint muted">
+                  系统全称：智能「{{ form.site_org }}」图号系统 · 副标题：「{{ form.site_org }}」图号系统
+                </div>
+              </el-form-item>
+              <el-form-item label="访客模式">
+                <el-switch v-model="guestModeBool" />
+                <div class="field-hint muted">开启后，未登录的访客可浏览图号数据并申请图号（仅新增）</div>
+              </el-form-item>
+              <el-form-item label="日志自动清理">
+                <div class="inline-row">
+                  <el-switch v-model="logAutoBool" />
+                  <el-input-number v-model="form.log_retention_days" :min="1" :max="365"
+                                   :disabled="!logAutoBool" controls-position="right" style="width: 120px" />
+                  <span class="muted">天</span>
+                </div>
+                <div class="field-hint muted">系统日志将定期自动清理，保留最近指定天数的记录</div>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="saving" @click="saveBasic">保存设置</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -66,10 +68,9 @@
       <!-- 通知 -->
       <el-tab-pane label="微信通知" name="notify">
         <div class="pane">
-          <div class="pane-title">微信通知</div>
-          <el-alert type="info" :closable="false" show-icon style="margin-bottom: 16px"
-                    title="新增 / 删除图号时可发送微信通知；图文消息封面尺寸 1068×455，由系统自动生成" />
-          <el-form label-width="130px" class="set-form">
+          <div class="pane-center">
+            <div class="pane-title">微信通知</div>
+            <el-form label-width="130px" class="set-form">
             <el-form-item label="启用通知">
               <el-switch v-model="notifyOn" />
             </el-form-item>
@@ -121,30 +122,40 @@
               <el-button :disabled="!notifyOn" :loading="testing" @click="testNotify">发送测试通知</el-button>
             </el-form-item>
           </el-form>
+          </div>
         </div>
       </el-tab-pane>
 
       <!-- 个性化 -->
       <el-tab-pane label="个性化" name="theme">
         <div class="pane">
-          <div class="pane-title">主题与外观</div>
-          <div class="theme-grid">
-            <div v-for="t in THEMES" :key="t.id" class="theme-card"
-                 :class="{ active: store.theme === t.id }" @click="store.setTheme(t.id)">
-              <div class="theme-colors">
-                <span :style="{ background: t.color }" />
-                <span :style="{ background: mix(t.color) }" />
+          <div class="pane-center pane-theme">
+            <div class="pane-title">主题与外观</div>
+            <div class="theme-grid">
+              <div v-for="t in THEMES" :key="t.id" class="theme-card"
+                   :class="{ active: store.theme === t.id }" @click="store.setTheme(t.id)">
+                <div class="theme-colors">
+                  <span :style="{ background: t.color }" />
+                  <span :style="{ background: mix(t.color) }" />
+                </div>
+                <div class="theme-name">{{ t.name }}</div>
+                <el-icon v-if="store.theme === t.id" class="theme-check"><Check /></el-icon>
               </div>
-              <div class="theme-name">{{ t.name }}</div>
-              <el-icon v-if="store.theme === t.id" class="theme-check"><Check /></el-icon>
             </div>
-          </div>
-          <div class="dark-row">
-            <div>
-              <div>暗色模式</div>
-              <div class="muted" style="font-size: 12px">深色背景下同色系低亮度配色</div>
+            <div class="dark-row">
+              <div>
+                <div>暗色模式</div>
+                <div class="muted" style="font-size: 12px">深色背景下同色系低亮度配色</div>
+              </div>
+              <el-switch :model-value="store.dark" @update:model-value="store.setDark" />
             </div>
-            <el-switch :model-value="store.dark" @update:model-value="store.setDark" />
+            <div class="dark-row">
+              <div>
+                <div>表格边框</div>
+                <div class="muted" style="font-size: 12px">开启后所有表格显示列分隔线，全局生效</div>
+              </div>
+              <el-switch :model-value="store.vborder" @update:model-value="store.setVborder" />
+            </div>
           </div>
         </div>
       </el-tab-pane>
@@ -152,37 +163,43 @@
       <!-- 账户安全 -->
       <el-tab-pane label="账户安全" name="security">
         <div class="pane">
-          <div class="pane-title">账户安全</div>
-          <el-form label-width="90px" class="set-form" ref="pwdFormRef" :model="pwd">
-            <el-form-item label="原密码">
-              <el-input v-model="pwd.old" type="password" show-password />
-            </el-form-item>
-            <el-form-item label="新密码">
-              <el-input v-model="pwd.new" type="password" show-password placeholder="至少 4 位" />
-            </el-form-item>
-            <el-form-item label="确认新密码">
-              <el-input v-model="pwd.confirm" type="password" show-password />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" :loading="pwdSaving" @click="changePwd">修改密码</el-button>
-            </el-form-item>
-          </el-form>
-          <div class="avatar-box card">
-            <div class="muted" style="margin-bottom: 10px">头像</div>
-            <el-avatar :size="72" :src="avatarUrl"
-                       style="background: var(--dc-primary); font-size: 28px">A</el-avatar>
-            <el-upload :show-file-list="false" :auto-upload="false" accept="image/*"
-                       :on-change="onAvatarChange" style="margin-top: 12px">
-              <el-button size="small">更换头像</el-button>
-            </el-upload>
+          <div class="pane-center">
+            <div class="pane-title">账户安全</div>
+            <el-form label-width="90px" class="set-form" ref="pwdFormRef" :model="pwd">
+              <el-form-item label="原密码">
+                <el-input v-model="pwd.old" type="password" show-password />
+              </el-form-item>
+              <el-form-item label="新密码">
+                <el-input v-model="pwd.new" type="password" show-password placeholder="至少 4 位" />
+              </el-form-item>
+              <el-form-item label="确认新密码">
+                <el-input v-model="pwd.confirm" type="password" show-password />
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="pwdSaving" @click="changePwd">修改密码</el-button>
+              </el-form-item>
+            </el-form>
+            <div class="avatar-row">
+              <el-avatar :size="56" :src="avatarUrl"
+                         style="background: var(--dc-primary); font-size: 22px; flex: none">A</el-avatar>
+              <div class="avatar-info">
+                <div class="avatar-name">{{ store.user?.username || 'admin' }}</div>
+                <div class="muted" style="font-size: 12px">支持 PNG / JPG / GIF / WebP，上传后自动替换旧头像</div>
+              </div>
+              <el-upload :show-file-list="false" :auto-upload="false" accept="image/*"
+                         :on-change="onAvatarChange">
+                <el-button>更换头像</el-button>
+              </el-upload>
+            </div>
           </div>
         </div>
       </el-tab-pane>
 
       <!-- 关于 -->
       <el-tab-pane label="关于" name="about">
-        <div class="pane about-pane">
-          <div class="pane-title">关于系统</div>
+        <div class="pane">
+          <div class="pane-center">
+            <div class="pane-title">关于系统</div>
           <div class="about-hero">
             <Logo :size="56" />
             <div>
@@ -204,6 +221,7 @@
             <ul>
               <li v-for="i in log.items" :key="i">{{ i }}</li>
             </ul>
+          </div>
           </div>
         </div>
       </el-tab-pane>
@@ -230,9 +248,9 @@
       </template>
     </el-dialog>
 
-    <!-- 字段管理抽屉 -->
-    <el-drawer v-model="fieldsOpen" :title="`字段管理 · ${fieldsTable?.name || ''}`"
-               size="620px" append-to-body destroy-on-close>
+    <!-- 字段管理 -->
+    <el-dialog v-model="fieldsOpen" :title="`字段管理 · ${fieldsTable?.name || ''}`"
+               width="720px" append-to-body destroy-on-close>
       <div class="fields-head">
         <span class="muted">内置字段不可删除；下拉类字段的新值将自动加入可选值</span>
         <el-button type="primary" size="small" :icon="Plus" @click="openFieldEdit(null)">添加字段</el-button>
@@ -275,7 +293,7 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-drawer>
+    </el-dialog>
 
     <!-- 字段编辑 -->
     <el-dialog v-model="fieldOpen" :title="fieldForm.id ? '编辑字段' : '添加字段'"
@@ -574,11 +592,15 @@ onMounted(() => {
 .pane-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
 .pane-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .pane-head .pane-title { margin-bottom: 0; }
+/* 表单类 tab 内容：水平居中 + 适度垂直居中，避免大面积留白 */
+.pane:has(> .pane-center) { display: flex; flex-direction: column; justify-content: center; }
+.pane-center { width: 100%; max-width: 760px; margin: 0 auto; }
+.pane-theme { max-width: 564px; }
 .set-form { max-width: 680px; }
 .field-hint { font-size: 12px; width: 100%; margin-top: 3px; }
 .inline-row { display: flex; align-items: center; gap: 10px; }
 
-.theme-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 180px)); gap: 12px; margin-bottom: 16px; }
+.theme-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .theme-card {
   position: relative; border: 2px solid var(--dc-border); border-radius: var(--dc-radius);
   padding: 12px 10px; cursor: pointer; text-align: center; transition: all .18s;
@@ -591,11 +613,19 @@ onMounted(() => {
 .theme-check { position: absolute; top: 6px; right: 8px; color: var(--dc-primary); }
 .dark-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 14px; border: 1px solid var(--dc-border); border-radius: var(--dc-radius); max-width: 420px;
+  padding: 12px 14px; border: 1px solid var(--dc-border); border-radius: var(--dc-radius);
+  width: 100%;
 }
+.dark-row + .dark-row { margin-top: 12px; }
 .about-log-title { margin: 20px 0 8px; }
 
-.avatar-box { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; max-width: 260px; margin-top: 18px; }
+.avatar-row {
+  display: flex; align-items: center; gap: 14px;
+  padding-top: 20px; margin-top: 22px;
+  border-top: 1px solid var(--dc-border);
+}
+.avatar-info { flex: 1; min-width: 0; }
+.avatar-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
 
 .about-hero { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
 .about-full { font-size: 19px; font-weight: 700; }

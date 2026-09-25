@@ -18,9 +18,6 @@
         <el-button @click="reset">重置</el-button>
       </div>
       <div class="toolbar-right">
-        <span class="muted auto-hint">
-          自动清理：{{ settings.log_auto_clear === '1' ? `保留最近 ${settings.log_retention_days} 天` : '已关闭' }}
-        </span>
         <el-button type="danger" plain :icon="Delete" @click="clearAll">清空日志</el-button>
       </div>
     </div>
@@ -65,7 +62,6 @@ const total = ref(0)
 const page = ref(1)
 const size = ref(50)
 const loading = ref(false)
-const settings = reactive({ log_auto_clear: '0', log_retention_days: '30' })
 
 async function load() {
   loading.value = true
@@ -107,13 +103,7 @@ async function clearAll() {
   load()
 }
 
-onMounted(async () => {
-  load()
-  try {
-    const res = await http.get('/settings')
-    Object.assign(settings, res.settings)
-  } catch { /* ignore */ }
-})
+onMounted(load)
 </script>
 
 <style scoped>
@@ -124,11 +114,10 @@ onMounted(async () => {
 }
 .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .toolbar-right { display: flex; align-items: center; gap: 10px; }
-.auto-hint { white-space: nowrap; font-size: 12px; }
 .f-item { width: 130px; }
 .f-item.range { width: 240px; }
 .f-item.search { width: 200px; }
-.table-card { flex: 1; min-height: 0; padding: 6px 6px 2px; overflow: hidden; }
+.table-card { flex: 1; min-height: 0; padding: 0; overflow: hidden; }
 .pagination-card { padding: 8px 12px; flex: none; display: flex; justify-content: flex-end; }
 
 @media (max-width: 768px) {

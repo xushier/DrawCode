@@ -82,36 +82,64 @@ body {
   text-overflow: ellipsis;
 }
 .dc-table .el-table__empty-block { min-height: 120px; }
-/* 竖向边框（列分隔线），所有表格统一 */
-.dc-table .el-table__cell { border-right: 1px solid var(--dc-border); }
-.dc-table .el-table__cell:last-child { border-right: none; }
+/* 竖向边框（列分隔线）：由系统设置「表格边框」开关控制，默认关闭 */
+html[data-vborder="1"] .dc-table .el-table__cell { border-right: 1px solid var(--dc-border); }
+html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none; }
 /* 单选 / 多选列 */
 .dc-table .el-table__cell .el-radio { margin-right: 0; height: auto; }
 
-/* ---------- 表格操作列：紧凑胶囊按钮 ---------- */
+/* ---------- 表格操作列：描边胶囊按钮 ----------
+   背景透明 + 同色描边，行 hover 时按钮依然清晰可见 */
 .op-btns { display: inline-flex; align-items: center; }
 .op-btns .el-button { margin-left: 0; padding: 4px 10px; }
 .op-btns .el-button + .el-button { margin-left: 6px; }
+.op-btns .el-button.is-text.is-has-bg { background: transparent; }
+.op-btns .el-button--primary.is-text.is-has-bg {
+  color: var(--dc-primary);
+  border: 1px solid color-mix(in srgb, var(--dc-primary) 50%, transparent);
+}
 .op-btns .el-button--primary.is-text.is-has-bg:hover {
-  background: var(--dc-primary-soft); color: var(--dc-primary); border-color: transparent;
+  background: var(--dc-primary-soft); color: var(--dc-primary);
+  border-color: var(--dc-primary);
+}
+.op-btns .el-button--danger.is-text.is-has-bg {
+  color: #d05650;
+  border: 1px solid color-mix(in srgb, #d05650 50%, transparent);
 }
 .op-btns .el-button--danger.is-text.is-has-bg:hover {
-  background: color-mix(in srgb, #d05650 12%, transparent); color: #d05650; border-color: transparent;
+  background: color-mix(in srgb, #d05650 10%, transparent); color: #d05650;
+  border-color: #d05650;
 }
 
-/* ---------- 横向胶囊 tabs（全局统一） ---------- */
+/* ---------- 横向分段 tabs（全局统一：长条背景 + 滑块过渡动画） ---------- */
 .dc-tabs .el-tabs__header { margin: 0 0 12px; }
 .dc-tabs .el-tabs__nav-wrap::after { display: none; }
-.dc-tabs .el-tabs__active-bar { display: none; }
-.dc-tabs .el-tabs__nav { display: flex; gap: 4px; }
+.dc-tabs .el-tabs__nav {
+  position: relative;
+  display: flex;
+  padding: 3px;
+  background: var(--dc-bg-soft);
+  border-radius: 10px;
+}
+/* 复用 EP 自带 active-bar 作绝对定位滑块（自带 width/transform 过渡动画） */
+.dc-tabs .el-tabs__active-bar {
+  display: block;
+  top: 3px;
+  bottom: auto;
+  height: calc(100% - 6px);
+  border-radius: 8px;
+  background: var(--dc-card);
+  box-shadow: var(--dc-shadow);
+}
 .dc-tabs .el-tabs__item {
-  height: 36px; line-height: 36px; padding: 0 16px;
+  position: relative; z-index: 2;
+  height: 36px; line-height: 36px; padding: 0 18px;
   border-radius: 8px; color: var(--dc-text-soft);
-  transition: background .15s, color .15s;
+  transition: color .2s;
 }
 .dc-tabs .el-tabs__item:hover { color: var(--dc-primary); }
 .dc-tabs .el-tabs__item.is-active {
-  background: var(--dc-primary-soft); color: var(--dc-primary); font-weight: 600;
+  color: var(--dc-primary); font-weight: 600;
 }
 /* 移动端：横向滑动，间距保持一致 */
 @media (max-width: 768px) {
@@ -119,6 +147,25 @@ body {
   .dc-tabs .el-tabs__nav-scroll::-webkit-scrollbar { display: none; }
   .dc-tabs .el-tabs__item { flex: none; white-space: nowrap; }
 }
+
+/* ---------- el-segmented 分段控件：与 dc-tabs 同风格 ---------- */
+.el-segmented, .el-segmented--small, .el-segmented--large {
+  --el-segmented-bg-color: var(--dc-bg-soft);
+  --el-segmented-item-selected-bg-color: var(--dc-card);
+  --el-segmented-item-selected-color: var(--dc-primary);
+  --el-segmented-item-hover-color: var(--dc-primary);
+  --el-segmented-item-hover-bg-color: transparent;
+  --el-segmented-item-active-bg-color: transparent;
+  border-radius: 10px;
+}
+.el-segmented { min-height: 26px; padding: 3px; }
+.el-segmented--small { padding: 2px; }
+.el-segmented .el-segmented__item-selected {
+  border-radius: 8px;
+  box-shadow: var(--dc-shadow);
+}
+.el-segmented--small .el-segmented__item-selected { border-radius: 7px; }
+.el-segmented__item.is-selected { font-weight: 600; }
 
 /* 斑马纹交由组件 stripe，浅主题下再弱化一次 */
 html.dark .dc-table.el-table .el-table__tr.bg-row td.el-table__cell {
@@ -157,6 +204,25 @@ html.dark .dc-table.el-table .el-table__tr.bg-row td.el-table__cell {
   border-top: 1px solid var(--dc-border);
 }
 .el-dialog__body { padding: 18px 20px; }
+
+/* ---------- 对话框 bounce 弹入动画（全局所有对话框生效） ---------- */
+@keyframes dcDialogBounce {
+  0% { transform: scale(.86); opacity: 0; }
+  55% { transform: scale(1.035); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.dialog-fade-enter-active .el-dialog,
+.el-fade-in-linear-enter-active .el-message-box {
+  animation: dcDialogBounce .3s cubic-bezier(.34, 1.4, .64, 1);
+}
+.dialog-fade-leave-active .el-dialog,
+.el-fade-in-linear-leave-active .el-message-box {
+  transition: transform .18s ease-in, opacity .18s ease-in;
+}
+.dialog-fade-leave-to .el-dialog,
+.el-fade-in-linear-leave-to .el-message-box {
+  transform: scale(.94); opacity: 0;
+}
 
 /* ---------- 表单 ---------- */
 .el-form-item__label { font-size: 13px; }

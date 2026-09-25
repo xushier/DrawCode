@@ -23,7 +23,9 @@ export const useApp = defineStore('app', {
     // 主题：本地记忆（非法值回退默认主题）
     theme: THEMES.some(t => t.id === localStorage.getItem('dc-theme'))
       ? localStorage.getItem('dc-theme') : 'lan',
-    dark: localStorage.getItem('dc-dark') === '1'
+    dark: localStorage.getItem('dc-dark') === '1',
+    // 表格竖向边框：后端设置，全局生效
+    vborder: false
   }),
   getters: {
     canManage: s => s.authed,
@@ -33,6 +35,7 @@ export const useApp = defineStore('app', {
     applyTheme() {
       document.documentElement.dataset.theme = this.theme
       document.documentElement.classList.toggle('dark', this.dark)
+      document.documentElement.dataset.vborder = this.vborder ? '1' : '0'
       localStorage.setItem('dc-theme', this.theme)
       localStorage.setItem('dc-dark', this.dark ? '1' : '0')
       // 防御外部环境（部分内嵌浏览器/插件）覆写 data-theme，导致主题变量失效
@@ -54,6 +57,11 @@ export const useApp = defineStore('app', {
       this.dark = !!v
       this.applyTheme()
     },
+    async setVborder(v) {
+      this.vborder = !!v
+      this.applyTheme()
+      await http.put('/settings', { table_vborder: v ? '1' : '0' })
+    },
     async init() {
       if (this.ready) return
       try {
@@ -64,6 +72,12 @@ export const useApp = defineStore('app', {
         if (res.site) this.site = res.site
       } catch (e) {
         /* 后端未启动时保持默认 */
+      }
+      try {
+        const ap = await http.get('/appearance', { headers: { 'X-Silent': 1 } })
+        this.vborder = !!ap.vborder
+      } catch (e) {
+        /* 保持默认关闭 */
       }
       this.ready = true
       this.applyTheme()

@@ -54,6 +54,7 @@ DEFAULT_SETTINGS = {
     "notify_on_delete": "1",
     "log_auto_clear": "1",
     "log_retention_days": "30",
+    "table_vborder": "0",
 }
 
 SYSTEM_TABLES = [

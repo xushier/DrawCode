@@ -25,52 +25,56 @@
       </div>
     </div>
 
-    <!-- 时间线 -->
-    <div class="card timeline-card" v-loading="loading">
-      <el-empty v-if="!items.length && !loading" description="暂无操作记录" :image-size="72" />
-      <el-scrollbar v-else max-height="calc(100vh - 210px)">
-        <el-timeline class="tl">
-          <el-timeline-item v-for="it in items" :key="it.id"
-                            :timestamp="it.created_at" placement="top"
-                            :color="tagColor(it.action)" :hollow="true">
-            <div class="tl-card">
-              <div class="tl-head">
-                <el-tag size="small" :type="tagType(it.action)">{{ actionLabel(it.action) }}</el-tag>
-                <span class="tl-user">
-                  <el-icon><User /></el-icon>{{ it.user }}
+    <!-- 记录表格 -->
+    <div class="card table-card" v-loading="loading">
+      <el-table :data="items" stripe size="small" class="dc-table" height="100%">
+        <template #empty><el-empty description="暂无操作记录" :image-size="72" /></template>
+        <el-table-column type="expand" width="36">
+          <template #default="{ row }">
+            <div class="detail-wrap">
+              <template v-if="row.action === 'record_update' && detailOf(row)?.changes">
+                <div v-for="(val, label) in detailOf(row).changes" :key="label" class="detail-change">
+                  <b>{{ label }}</b>
+                  <span class="old">{{ fmt(val[0]) }}</span>
+                  <el-icon><Right /></el-icon>
+                  <span class="new">{{ fmt(val[1]) }}</span>
+                </div>
+              </template>
+              <template v-else-if="row.action === 'record_add' || row.action === 'record_delete'">
+                <span v-for="(v, k) in compactData(row)" :key="k" class="detail-kv">{{ k }}：{{ v }}</span>
+              </template>
+              <template v-else-if="detailOf(row) && typeof detailOf(row) === 'object'">
+                <span v-for="(v, k) in detailOf(row)" :key="k" class="detail-kv">
+                  {{ detailLabel(k) }}：{{ detailVal(v) }}
                 </span>
-                <el-tag v-if="it.table_name" size="small" type="info" effect="plain">{{ it.table_name }}</el-tag>
-                <span v-if="it.target" class="tl-target">{{ it.target }}</span>
-              </div>
-              <div v-if="detailOf(it)" class="tl-detail">
-                <template v-if="it.action === 'record_update'">
-                  <div v-for="(val, label) in detailOf(it).changes" :key="label" class="tl-change">
-                    <b>{{ label }}</b><span class="old">{{ fmt(val[0]) }}</span>
-                    <el-icon><Right /></el-icon>
-                    <span class="new">{{ fmt(val[1]) }}</span>
-                  </div>
-                </template>
-                <template v-else-if="it.action === 'record_add'">
-                  <span v-for="(v, k) in compactData(it)" :key="k" class="tl-kv">{{ k }}：{{ v }}</span>
-                </template>
-                <template v-else-if="it.action === 'record_delete'">
-                  <span v-for="(v, k) in compactData(it)" :key="k" class="tl-kv">{{ k }}：{{ v }}</span>
-                </template>
-                <template v-else-if="typeof detailOf(it) === 'object'">
-                  <span v-for="(v, k) in detailOf(it)" :key="k" class="tl-kv">
-                    {{ detailLabel(k) }}：{{ detailVal(v) }}
-                  </span>
-                </template>
-              </div>
+              </template>
+              <span v-else class="muted">无详细数据</span>
             </div>
-          </el-timeline-item>
-        </el-timeline>
-      </el-scrollbar>
-      <div class="pager">
-        <el-pagination v-model:current-page="page" :page-size="size" :total="total"
-                       layout="total, prev, pager, next" background
-                       @update:current-page="load" />
-      </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="时间" width="165" />
+        <el-table-column prop="user" label="操作人" width="110" show-overflow-tooltip />
+        <el-table-column label="操作" width="110" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="tagType(row.action)">{{ actionLabel(row.action) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="table_name" label="数据表" width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.table_name || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="对象" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.target" class="row-target">{{ row.target }}</span>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <div class="card pagination-card">
+      <el-pagination v-model:current-page="page" :page-size="size" :total="total"
+                     layout="total, prev, pager, next" background
+                     @update:current-page="load" />
     </div>
   </div>
 </template>
@@ -78,7 +82,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Delete } from '@element-plus/icons-vue'
+import { Search, Delete, Right } from '@element-plus/icons-vue'
 import { http } from '@/api'
 
 const ACTIONS = {
@@ -107,13 +111,6 @@ const TAG_TYPES = {
 
 function actionLabel(a) { return ACTIONS[a] || a }
 function tagType(a) { return TAG_TYPES[a] || 'info' }
-function tagColor(a) {
-  const map = {
-    record_add: '#2f9e6e', record_delete: '#d05650', record_update: '#d07e2d',
-    import: '#50c2a0', export: '#3a7bd5', login: '#8b95a1', logout: '#8b95a1'
-  }
-  return map[a] || '#8b95a1'
-}
 
 function detailOf(it) {
   if (!it.detail) return null
@@ -137,12 +134,17 @@ function detailVal(v) {
   return String(v)
 }
 
+/* record_add / record_delete 的 data 摘要：中文键名 */
+const DATA_LABELS = {
+  drawing_no: '图号', name: '名称', model: '型号', project: '工程/项目',
+  applicant: '申请人', remark: '备注'
+}
 function compactData(it) {
   const d = detailOf(it)
   const data = d?.data || {}
   const out = {}
   for (const k of ['drawing_no', 'name', 'model', 'project', 'applicant', 'remark']) {
-    if (data[k]) out[k] = Array.isArray(data[k]) ? data[k].join('、') : data[k]
+    if (data[k]) out[DATA_LABELS[k] || k] = Array.isArray(data[k]) ? data[k].join('、') : data[k]
   }
   return out
 }
@@ -217,19 +219,19 @@ onMounted(async () => {
 .f-item.range { width: 240px; }
 .f-item.search { width: 200px; }
 
-.timeline-card { flex: 1; min-height: 0; padding: 16px 18px; overflow: hidden; display: flex; flex-direction: column; }
-.tl { padding: 4px 6px 0 4px; }
-.tl-card { padding-bottom: 2px; }
-.tl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.tl-user { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; color: var(--dc-text); }
-.tl-target { font-weight: 600; color: var(--dc-primary); font-size: 13px; }
-.tl-detail { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px 14px; }
-.tl-kv { font-size: 12.5px; color: var(--dc-text-soft); }
-.tl-change { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
-.tl-change b { color: var(--dc-text); font-weight: 600; }
-.tl-change .old { color: #c9506e; text-decoration: line-through; }
-.tl-change .new { color: #2f9e6e; font-weight: 500; }
-.pager { display: flex; justify-content: flex-end; padding-top: 10px; flex: none; }
+.table-card { flex: 1; min-height: 0; padding: 0; overflow: hidden; }
+.pagination-card { padding: 8px 12px; flex: none; display: flex; justify-content: flex-end; }
+
+.row-target { font-weight: 600; color: var(--dc-primary); font-size: 13px; }
+.detail-wrap {
+  padding: 2px 12px 10px;
+  display: flex; flex-wrap: wrap; gap: 8px 20px;
+}
+.detail-kv { font-size: 12.5px; color: var(--dc-text-soft); }
+.detail-change { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.detail-change b { color: var(--dc-text); font-weight: 600; }
+.detail-change .old { color: #c9506e; text-decoration: line-through; }
+.detail-change .new { color: #2f9e6e; font-weight: 500; }
 
 @media (max-width: 768px) {
   .records-page { overflow-y: auto; }

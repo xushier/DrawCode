@@ -64,6 +64,13 @@
       </el-col>
     </el-row>
 
+    <!-- 日历热力图 -->
+    <el-row>
+      <el-col :span="24">
+        <CalendarCard />
+      </el-col>
+    </el-row>
+
     <el-row :gutter="12">
       <!-- 申请人排行 -->
       <el-col :xs="24" :lg="8">
@@ -129,6 +136,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { http } from '@/api'
 import { useApp } from '@/store'
+import CalendarCard from '@/components/CalendarCard.vue'
 
 const store = useApp()
 const stat = reactive({ total: 0, today: 0, week: 0, ops_total: 0 })
@@ -292,5 +300,10 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) {
   .recent-meta { display: none; }
   .chart { height: 220px; }
+  /* 移动端：同屏多卡片时保证垂直间距 */
+  .dash .el-col { margin-bottom: 12px; }
+  .dash .el-row { margin-bottom: 0; }
+  .dash .el-row:last-child .el-col:last-child { margin-bottom: 0; }
+  .stat-row { row-gap: 0; }
 }
 </style>
