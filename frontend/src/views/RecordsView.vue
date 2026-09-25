@@ -57,7 +57,9 @@
                   <span v-for="(v, k) in compactData(it)" :key="k" class="tl-kv">{{ k }}：{{ v }}</span>
                 </template>
                 <template v-else-if="typeof detailOf(it) === 'object'">
-                  <span class="tl-kv">{{ JSON.stringify(detailOf(it)) }}</span>
+                  <span v-for="(v, k) in detailOf(it)" :key="k" class="tl-kv">
+                    {{ detailLabel(k) }}：{{ detailVal(v) }}
+                  </span>
                 </template>
               </div>
             </div>
@@ -116,6 +118,23 @@ function tagColor(a) {
 function detailOf(it) {
   if (!it.detail) return null
   try { return JSON.parse(it.detail) } catch { return it.detail }
+}
+
+/* detail 键名中文映射（操作记录友好展示） */
+const DETAIL_LABELS = {
+  keys: '修改项', added: '成功', failed: '失败', count: '数量', file: '文件',
+  old_name: '原表名', new_name: '新表名', label: '字段名', type: '类型',
+  id: 'ID', name: '名称', required: '必填', default_value: '默认值',
+  options: '可选值', user: '用户', table: '数据表', target: '对象'
+}
+function detailLabel(k) { return DETAIL_LABELS[k] || k }
+
+function detailVal(v) {
+  if (v === null || v === undefined) return '空'
+  if (Array.isArray(v)) return v.map(x => (x && typeof x === 'object' ? JSON.stringify(x) : x)).join('、') || '空'
+  if (typeof v === 'boolean') return v ? '是' : '否'
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
 }
 
 function compactData(it) {

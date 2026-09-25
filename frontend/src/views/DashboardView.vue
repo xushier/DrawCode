@@ -65,7 +65,7 @@
     </el-row>
 
     <el-row :gutter="12">
-      <!-- 排行 -->
+      <!-- 申请人排行 -->
       <el-col :xs="24" :lg="8">
         <div class="card rank-card">
           <div class="card-title">申请人排行榜</div>
@@ -75,7 +75,25 @@
               <span class="rank-no tabular" :class="`rank-${i + 1}`">{{ i + 1 }}</span>
               <span class="rank-name">{{ r.name }}</span>
               <div class="rank-bar-wrap">
-                <div class="rank-bar" :style="{ width: pct(r.count) }" />
+                <div class="rank-bar" :style="{ width: pct(r.count, maxApplicant) }" />
+              </div>
+              <span class="rank-count tabular">{{ r.count }}</span>
+            </div>
+          </div>
+        </div>
+      </el-col>
+
+      <!-- 工程项目排行 -->
+      <el-col :xs="24" :lg="8">
+        <div class="card rank-card">
+          <div class="card-title">工程项目排行榜</div>
+          <el-empty v-if="!projectRanking.length" description="暂无数据" :image-size="60" />
+          <div v-else class="rank-list">
+            <div v-for="(r, i) in projectRanking" :key="r.name" class="rank-item">
+              <span class="rank-no tabular" :class="`rank-${i + 1}`">{{ i + 1 }}</span>
+              <span class="rank-name rank-name-w">{{ r.name }}</span>
+              <div class="rank-bar-wrap">
+                <div class="rank-bar" :style="{ width: pct(r.count, maxProject) }" />
               </div>
               <span class="rank-count tabular">{{ r.count }}</span>
             </div>
@@ -84,7 +102,7 @@
       </el-col>
 
       <!-- 最近数据 -->
-      <el-col :xs="24" :lg="16">
+      <el-col :xs="24" :lg="8">
         <div class="card recent-card">
           <div class="card-title">最近添加的数据</div>
           <el-empty v-if="!recent.length" description="暂无数据" :image-size="60" />
@@ -117,6 +135,7 @@ const stat = reactive({ total: 0, today: 0, week: 0, ops_total: 0 })
 const byTable = ref([])
 const growth = ref([])
 const ranking = ref([])
+const projectRanking = ref([])
 const recent = ref([])
 
 const growthEl = ref()
@@ -191,13 +210,15 @@ async function load() {
   Object.assign(stat, { total: res.total, today: res.today, week: res.week, ops_total: res.ops_total })
   byTable.value = res.by_table
   growth.value = res.growth
-  ranking.value = res.ranking
+  ranking.value = res.ranking || []
+  projectRanking.value = res.project_ranking || []
   recent.value = res.recent
   renderCharts()
 }
 
-const maxRank = computed(() => ranking.value[0]?.count || 1)
-function pct(n) { return Math.max(6, Math.round((n / maxRank.value) * 100)) + '%' }
+const maxApplicant = computed(() => ranking.value[0]?.count || 1)
+const maxProject = computed(() => projectRanking.value[0]?.count || 1)
+function pct(n, max) { return Math.max(6, Math.round((n / max) * 100)) + '%' }
 
 onMounted(async () => {
   await load()
@@ -250,6 +271,7 @@ onBeforeUnmount(() => {
 .rank-2 { background: #9aa8b5; color: #fff; }
 .rank-3 { background: #c98a5b; color: #fff; }
 .rank-name { width: 70px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-name-w { width: 110px; }
 .rank-bar-wrap { flex: 1; height: 8px; background: var(--dc-bg-soft); border-radius: 4px; overflow: hidden; }
 .rank-bar { height: 100%; background: var(--dc-primary); border-radius: 4px; transition: width .4s; }
 .rank-count { width: 36px; text-align: right; color: var(--dc-text-soft); font-size: 12px; }

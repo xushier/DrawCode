@@ -234,14 +234,19 @@ def create_app():
             "FROM records r JOIN tables t ON t.id = r.table_id "
             "ORDER BY r.id DESC LIMIT 8")
 
-        # 申请人排行
+        # 申请人 / 工程项目排行
         counter = {}
+        proj_counter = {}
         for r in D.query("SELECT data FROM records"):
             data = json.loads(r["data"])
             name = str(data.get("applicant") or "").strip()
             if name:
                 counter[name] = counter.get(name, 0) + 1
+            proj = str(data.get("project") or "").strip()
+            if proj:
+                proj_counter[proj] = proj_counter.get(proj, 0) + 1
         ranking = sorted(counter.items(), key=lambda x: -x[1])[:10]
+        project_ranking = sorted(proj_counter.items(), key=lambda x: -x[1])[:10]
 
         ops_total = D.query("SELECT COUNT(*) c FROM ops", one=True)["c"]
         return jsonify(ok=True, total=total, today=day_count(0), week=day_count(6),
@@ -250,7 +255,8 @@ def create_app():
                                   "count": counts.get(t["id"], 0)} for t in tables],
                        growth=growth,
                        recent=[dict(r, data=json.loads(r["data"])) for r in recent],
-                       ranking=[{"name": k, "count": v} for k, v in ranking])
+                       ranking=[{"name": k, "count": v} for k, v in ranking],
+                       project_ranking=[{"name": k, "count": v} for k, v in project_ranking])
 
     # ---------- 操作记录 ----------
     @app.get("/api/ops")

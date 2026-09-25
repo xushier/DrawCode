@@ -197,7 +197,10 @@ defineExpose({ refreshAvatar })
 }
 .aside-collapsed .menu :deep(.el-menu-item) {
   width: 44px; min-width: 44px; margin: 4px auto;
+  padding: 0 !important;
+  display: flex; align-items: center; justify-content: center;
 }
+.aside-collapsed .menu :deep(.el-menu-item .el-icon) { margin: 0; }
 .menu :deep(.el-menu-item:hover) { background: var(--dc-primary-soft); }
 .menu :deep(.el-menu-item.is-active) {
   background: var(--dc-primary); color: #fff;

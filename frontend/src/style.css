@@ -82,11 +82,43 @@ body {
   text-overflow: ellipsis;
 }
 .dc-table .el-table__empty-block { min-height: 120px; }
-/* 竖向边框模式（列分隔线） */
-.dc-table.v-border .el-table__cell { border-right: 1px solid var(--dc-border); }
-.dc-table.v-border .el-table__cell:last-child { border-right: none; }
+/* 竖向边框（列分隔线），所有表格统一 */
+.dc-table .el-table__cell { border-right: 1px solid var(--dc-border); }
+.dc-table .el-table__cell:last-child { border-right: none; }
 /* 单选 / 多选列 */
 .dc-table .el-table__cell .el-radio { margin-right: 0; height: auto; }
+
+/* ---------- 表格操作列：紧凑胶囊按钮 ---------- */
+.op-btns { display: inline-flex; align-items: center; }
+.op-btns .el-button { margin-left: 0; padding: 4px 10px; }
+.op-btns .el-button + .el-button { margin-left: 6px; }
+.op-btns .el-button--primary.is-text.is-has-bg:hover {
+  background: var(--dc-primary-soft); color: var(--dc-primary); border-color: transparent;
+}
+.op-btns .el-button--danger.is-text.is-has-bg:hover {
+  background: color-mix(in srgb, #d05650 12%, transparent); color: #d05650; border-color: transparent;
+}
+
+/* ---------- 横向胶囊 tabs（全局统一） ---------- */
+.dc-tabs .el-tabs__header { margin: 0 0 12px; }
+.dc-tabs .el-tabs__nav-wrap::after { display: none; }
+.dc-tabs .el-tabs__active-bar { display: none; }
+.dc-tabs .el-tabs__nav { display: flex; gap: 4px; }
+.dc-tabs .el-tabs__item {
+  height: 36px; line-height: 36px; padding: 0 16px;
+  border-radius: 8px; color: var(--dc-text-soft);
+  transition: background .15s, color .15s;
+}
+.dc-tabs .el-tabs__item:hover { color: var(--dc-primary); }
+.dc-tabs .el-tabs__item.is-active {
+  background: var(--dc-primary-soft); color: var(--dc-primary); font-weight: 600;
+}
+/* 移动端：横向滑动，间距保持一致 */
+@media (max-width: 768px) {
+  .dc-tabs .el-tabs__nav-scroll { overflow-x: auto; scrollbar-width: none; }
+  .dc-tabs .el-tabs__nav-scroll::-webkit-scrollbar { display: none; }
+  .dc-tabs .el-tabs__item { flex: none; white-space: nowrap; }
+}
 
 /* 斑马纹交由组件 stripe，浅主题下再弱化一次 */
 html.dark .dc-table.el-table .el-table__tr.bg-row td.el-table__cell {

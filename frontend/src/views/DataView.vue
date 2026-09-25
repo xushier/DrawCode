@@ -54,10 +54,6 @@
             </el-checkbox-group>
             <div class="pop-sec muted">表格外观</div>
             <div class="pop-row">
-              <span>竖向边框</span>
-              <el-switch v-model="vBorder" size="small" />
-            </div>
-            <div class="pop-row">
               <span>选择行</span>
               <el-segmented v-model="selMode" :options="selOptions" size="small" />
             </div>
@@ -72,7 +68,7 @@
     <!-- 数据表 -->
     <div class="card table-card" v-loading="loading">
       <el-table ref="tableRef" :data="records" stripe size="small"
-                class="dc-table" :class="{ 'v-border': vBorder }"
+                class="dc-table"
                 height="100%" :row-key="r => r.id"
                 :highlight-current-row="selMode === 'single'"
                 :default-sort="{ prop: 'data.sn', order: 'descending' }"
@@ -106,10 +102,12 @@
             <span v-else>{{ fmtCell(row.data[f.key]) }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="store.authed" label="操作" width="116" fixed="right" align="center">
+        <el-table-column v-if="store.authed" label="操作" width="132" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button size="small" type="primary" text bg @click="openEdit(row)">编辑</el-button>
-            <el-button size="small" type="danger" text bg @click="onDelete(row)">删除</el-button>
+            <div class="op-btns">
+              <el-button size="small" type="primary" text bg @click="openEdit(row)">编辑</el-button>
+              <el-button size="small" type="danger" text bg @click="onDelete(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -213,8 +211,7 @@ const options = reactive({})
 const tableRef = ref()
 const filterRef = ref()
 
-/* 表格外观：竖向边框 + 选择行（无 / 单选 / 多选），本地记忆 */
-const vBorder = ref(localStorage.getItem('dc-vborder') !== '0')
+/* 表格外观：选择行（无 / 单选 / 多选），本地记忆 */
 const selMode = ref(localStorage.getItem('dc-selmode') || 'none')
 const selOptions = [
   { label: '无', value: 'none' },
@@ -223,7 +220,6 @@ const selOptions = [
 ]
 const selection = ref([])
 const selSingleId = ref(null)
-watch(vBorder, v => localStorage.setItem('dc-vborder', v ? '1' : '0'))
 watch(selMode, v => {
   localStorage.setItem('dc-selmode', v)
   selection.value = []
@@ -510,19 +506,8 @@ function fmtCell(v) {
 .data-page { height: 100%; overflow: hidden; }
 
 .tabs-card { padding: 6px 10px; flex: none; }
+/* tabs 样式统一走全局 .dc-tabs（style.css），此处仅收紧卡片内边距 */
 .dc-tabs :deep(.el-tabs__header) { margin: 0; }
-.dc-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }
-.dc-tabs :deep(.el-tabs__active-bar) { display: none; }
-.dc-tabs :deep(.el-tabs__nav) { gap: 4px; }
-.dc-tabs :deep(.el-tabs__item) {
-  height: 36px; line-height: 36px; padding: 0 16px;
-  border-radius: 8px; color: var(--dc-text-soft);
-  transition: background .15s, color .15s;
-}
-.dc-tabs :deep(.el-tabs__item:hover) { color: var(--dc-primary); }
-.dc-tabs :deep(.el-tabs__item.is-active) {
-  background: var(--dc-primary-soft); color: var(--dc-primary); font-weight: 600;
-}
 .tab-label { display: inline-flex; align-items: center; gap: 5px; max-width: 240px; }
 .tab-count {
   background: color-mix(in srgb, var(--dc-primary) 16%, transparent);
@@ -566,7 +551,6 @@ function fmtCell(v) {
   .table-card { min-height: 55vh; }
   .search-input { width: 100%; }
   .toolbar-left, .toolbar-right { width: 100%; }
-  .dc-tabs :deep(.el-tabs__item) { padding: 0 10px; }
   .tab-label { max-width: 160px; }
 }
 </style>

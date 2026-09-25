@@ -1,7 +1,6 @@
 <template>
   <div class="page settings-page">
-    <el-tabs v-model="tab" tab-position="left" class="settings-tabs"
-             :class="{ 'is-mobile': isMobile }">
+    <el-tabs v-model="tab" class="settings-tabs dc-tabs">
       <!-- 基本设置 -->
       <el-tab-pane label="基本设置" name="basic">
         <div class="pane">
@@ -53,9 +52,11 @@
             </el-table-column>
             <el-table-column label="操作" width="232" align="center">
               <template #default="{ row }">
-                <el-button size="small" type="primary" text bg @click="openFields(row)">字段管理</el-button>
-                <el-button size="small" text bg @click="renameTable(row)">重命名</el-button>
-                <el-button v-if="!row.is_system" size="small" type="danger" text bg @click="deleteTable(row)">删除</el-button>
+                <div class="op-btns">
+                  <el-button size="small" type="primary" text bg @click="openFields(row)">字段管理</el-button>
+                  <el-button size="small" text bg @click="renameTable(row)">重命名</el-button>
+                  <el-button v-if="!row.is_system" size="small" type="danger" text bg @click="deleteTable(row)">删除</el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -152,36 +153,29 @@
       <el-tab-pane label="账户安全" name="security">
         <div class="pane">
           <div class="pane-title">账户安全</div>
-          <el-row :gutter="24">
-            <el-col :xs="24" :md="14">
-              <el-form label-width="90px" class="set-form" ref="pwdFormRef" :model="pwd">
-                <el-form-item label="原密码">
-                  <el-input v-model="pwd.old" type="password" show-password />
-                </el-form-item>
-                <el-form-item label="新密码">
-                  <el-input v-model="pwd.new" type="password" show-password placeholder="至少 4 位" />
-                </el-form-item>
-                <el-form-item label="确认新密码">
-                  <el-input v-model="pwd.confirm" type="password" show-password />
-                </el-form-item>
-                <el-form-item>
-                  <el-button type="primary" :loading="pwdSaving" @click="changePwd">修改密码</el-button>
-                </el-form-item>
-              </el-form>
-            </el-col>
-            <el-col :xs="24" :md="10">
-              <div class="avatar-box card">
-                <div class="muted" style="margin-bottom: 10px">头像</div>
-                <el-avatar :size="72" :src="avatarUrl"
-                           style="background: var(--dc-primary); font-size: 28px">A</el-avatar>
-                <el-upload :show-file-list="false" :auto-upload="false" accept="image/*"
-                           :on-change="onAvatarChange" style="margin-top: 12px">
-                  <el-button size="small">更换头像</el-button>
-                </el-upload>
-              </div>
-            </el-col>
-          </el-row>
-          <el-button type="danger" plain :icon="SwitchButton" class="logout-btn" @click="doLogout">退出登录</el-button>
+          <el-form label-width="90px" class="set-form" ref="pwdFormRef" :model="pwd">
+            <el-form-item label="原密码">
+              <el-input v-model="pwd.old" type="password" show-password />
+            </el-form-item>
+            <el-form-item label="新密码">
+              <el-input v-model="pwd.new" type="password" show-password placeholder="至少 4 位" />
+            </el-form-item>
+            <el-form-item label="确认新密码">
+              <el-input v-model="pwd.confirm" type="password" show-password />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="pwdSaving" @click="changePwd">修改密码</el-button>
+            </el-form-item>
+          </el-form>
+          <div class="avatar-box card">
+            <div class="muted" style="margin-bottom: 10px">头像</div>
+            <el-avatar :size="72" :src="avatarUrl"
+                       style="background: var(--dc-primary); font-size: 28px">A</el-avatar>
+            <el-upload :show-file-list="false" :auto-upload="false" accept="image/*"
+                       :on-change="onAvatarChange" style="margin-top: 12px">
+              <el-button size="small">更换头像</el-button>
+            </el-upload>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -272,10 +266,12 @@
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="116" align="center">
+        <el-table-column label="操作" width="132" align="center">
           <template #default="{ row }">
-            <el-button size="small" type="primary" text bg @click="openFieldEdit(row)">编辑</el-button>
-            <el-button v-if="!row.is_system" size="small" type="danger" text bg @click="deleteField(row)">删除</el-button>
+            <div class="op-btns">
+              <el-button size="small" type="primary" text bg @click="openFieldEdit(row)">编辑</el-button>
+              <el-button v-if="!row.is_system" size="small" type="danger" text bg @click="deleteField(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -321,10 +317,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, SwitchButton } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import { http } from '@/api'
 import { useApp, THEMES } from '@/store'
 import Logo from '@/components/Logo.vue'
@@ -334,10 +330,6 @@ const route = useRoute()
 const router = useRouter()
 
 const tab = ref('basic')
-const isMobile = ref(window.innerWidth < 768)
-const onResize = () => { isMobile.value = window.innerWidth < 768 }
-window.addEventListener('resize', onResize)
-onUnmounted(() => window.removeEventListener('resize', onResize))
 watch(tab, () => router.replace({ query: { ...route.query, tab: tab.value } }))
 
 const FIELD_TYPES = {
@@ -561,11 +553,6 @@ async function onAvatarChange(file) {
   ElMessage.success('头像已更新')
 }
 
-async function doLogout() {
-  await store.logout()
-  router.push('/login')
-}
-
 onMounted(() => {
   if (route.query.tab) tab.value = String(route.query.tab)
   loadSettings()
@@ -575,41 +562,13 @@ onMounted(() => {
 
 <style scoped>
 .settings-page { height: 100%; overflow: hidden; }
-.settings-tabs { height: 100%; background: transparent; }
-.settings-tabs :deep(.el-tabs__header.is-left) {
-  width: 132px; margin-right: 14px; background: var(--dc-card);
-  border: 1px solid var(--dc-border); border-radius: var(--dc-radius);
-  padding: 8px; height: fit-content;
-}
-.settings-tabs :deep(.el-tabs__active-bar) { display: none; }
-.settings-tabs :deep(.el-tabs__item) {
-  height: 38px; line-height: 38px; justify-content: flex-start;
-  padding: 0 14px; margin: 2px 0; border-radius: 8px;
-  color: var(--dc-text-soft); transition: background .15s, color .15s;
-}
-.settings-tabs :deep(.el-tabs__item:hover) { color: var(--dc-primary); }
-.settings-tabs :deep(.el-tabs__item.is-active) {
-  background: var(--dc-primary-soft); color: var(--dc-primary); font-weight: 600;
-}
-.settings-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }
-.settings-tabs :deep(.el-tabs__content) { overflow-y: auto; height: 100%; }
+.settings-tabs { height: 100%; background: transparent; display: flex; flex-direction: column; }
+/* 横向 tabs：样式走全局 .dc-tabs，此处只管布局 */
+.settings-tabs :deep(.el-tabs__header) { margin: 0 0 12px; flex: none; }
+.settings-tabs :deep(.el-tabs__content) { flex: 1; min-height: 0; overflow-y: auto; }
 .pane {
   background: var(--dc-card); border: 1px solid var(--dc-border);
   border-radius: var(--dc-radius); padding: 20px; min-height: calc(100vh - 180px);
-}
-/* 移动端：tabs 变为顶部横滑胶囊条，内容不贴边、不换行 */
-.settings-tabs.is-mobile :deep(.el-tabs__header.is-left) {
-  width: 100%; margin: 0 0 10px; padding: 6px;
-}
-.settings-tabs.is-mobile :deep(.el-tabs__nav) {
-  display: flex; gap: 4px; width: 100%;
-  overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: none;
-}
-.settings-tabs.is-mobile :deep(.el-tabs__nav::-webkit-scrollbar) { display: none; }
-.settings-tabs.is-mobile :deep(.el-tabs__item) {
-  flex: none; height: 32px; line-height: 32px; margin: 0;
-  padding: 0 13px; font-size: 13px; white-space: nowrap;
 }
 
 .pane-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
@@ -634,10 +593,9 @@ onMounted(() => {
   display: flex; justify-content: space-between; align-items: center;
   padding: 12px 14px; border: 1px solid var(--dc-border); border-radius: var(--dc-radius); max-width: 420px;
 }
-.logout-btn { margin-top: 18px; }
 .about-log-title { margin: 20px 0 8px; }
 
-.avatar-box { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; max-width: 260px; }
+.avatar-box { padding: 16px; display: flex; flex-direction: column; align-items: flex-start; max-width: 260px; margin-top: 18px; }
 
 .about-hero { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
 .about-full { font-size: 19px; font-weight: 700; }

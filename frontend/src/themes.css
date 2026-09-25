@@ -17,7 +17,7 @@ html[data-theme] {
   --dc-text: #23272e;
   --dc-text-soft: #5a6470;
   --dc-primary-soft: color-mix(in srgb, var(--dc-primary) 12%, white);
-  --dc-shadow: 0 1px 3px rgba(30, 40, 50, 0.07);
+  --dc-shadow: 0 1px 2px rgba(30, 40, 50, 0.03);
 }
 
 /* 暗色模式：同色系低亮度背景 */
@@ -39,7 +39,7 @@ html.dark[data-theme] {
   --dc-text: #d8dee6;
   --dc-text-soft: #8b95a1;
   --dc-primary-soft: color-mix(in srgb, var(--dc-primary) 22%, #101215);
-  --dc-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  --dc-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
 /* 六种主题色 */
