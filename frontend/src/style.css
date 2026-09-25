@@ -117,19 +117,21 @@ html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none
 .dc-tabs .el-tabs__nav {
   position: relative;
   display: flex;
-  padding: 3px;
+  padding: 5px;
   background: var(--dc-bg-soft);
   border-radius: 10px;
 }
-/* 复用 EP 自带 active-bar 作绝对定位滑块（自带 width/transform 过渡动画） */
+/* 复用 EP 自带 active-bar 作绝对定位滑块（自带 width/transform 过渡动画）。
+   EP 计算滑块宽度时会减去 item 的左右内边距，导致滑块紧贴文字；
+   故用左右同色投影各外扩 14px，让白色滑块与文字保持内边距 */
 .dc-tabs .el-tabs__active-bar {
   display: block;
-  top: 3px;
+  top: 5px;
   bottom: auto;
-  height: calc(100% - 6px);
+  height: calc(100% - 10px);
   border-radius: 8px;
   background: var(--dc-card);
-  box-shadow: var(--dc-shadow);
+  box-shadow: -14px 0 0 var(--dc-card), 14px 0 0 var(--dc-card), var(--dc-shadow);
 }
 .dc-tabs .el-tabs__item {
   position: relative; z-index: 2;

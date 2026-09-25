@@ -36,7 +36,7 @@
 
       <!-- 表管理 -->
       <el-tab-pane label="表管理" name="tables">
-        <div class="pane">
+        <div class="pane pane-table">
           <div class="pane-head">
             <div class="pane-title">数据表管理</div>
             <el-button type="primary" :icon="Plus" @click="newTableOpen = true">新建表</el-button>
@@ -586,16 +586,16 @@ onMounted(() => {
 .settings-tabs :deep(.el-tabs__content) { flex: 1; min-height: 0; overflow-y: auto; }
 .pane {
   background: var(--dc-card); border: 1px solid var(--dc-border);
-  border-radius: var(--dc-radius); padding: 20px; min-height: calc(100vh - 180px);
+  border-radius: var(--dc-radius); padding: 20px;
+  width: fit-content; min-width: 560px; max-width: 760px;
 }
+/* 表管理页保持通栏卡片 */
+.pane.pane-table { width: 100%; min-width: 0; max-width: none; }
 
 .pane-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
 .pane-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .pane-head .pane-title { margin-bottom: 0; }
-/* 表单类 tab 内容：水平居中 + 适度垂直居中，避免大面积留白 */
-.pane:has(> .pane-center) { display: flex; flex-direction: column; justify-content: center; }
-.pane-center { width: 100%; max-width: 760px; margin: 0 auto; }
-.pane-theme { max-width: 564px; }
+.pane-center { width: 100%; }
 .set-form { max-width: 680px; }
 .field-hint { font-size: 12px; width: 100%; margin-top: 3px; }
 .inline-row { display: flex; align-items: center; gap: 10px; }
@@ -647,6 +647,6 @@ onMounted(() => {
 @media (max-width: 768px) {
   .settings-page { overflow-y: auto; }
   .theme-grid { grid-template-columns: repeat(2, 1fr); }
-  .pane { min-height: auto; }
+  .pane { width: 100%; min-width: 0; }
 }
 </style>

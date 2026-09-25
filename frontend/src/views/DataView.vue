@@ -1,19 +1,17 @@
 <template>
   <div class="page data-page">
     <!-- 表切换 -->
-    <div class="card tabs-card">
-      <el-tabs v-model="activeId" @tab-change="onTableChange" class="dc-tabs">
-        <el-tab-pane v-for="t in tables" :key="t.id" :name="t.id">
-          <template #label>
-            <span class="tab-label">
-              <el-icon><Tickets /></el-icon>
-              {{ t.name }}
-              <span class="tab-count tabular">{{ t.count }}</span>
-            </span>
-          </template>
-        </el-tab-pane>
-      </el-tabs>
-    </div>
+    <el-tabs v-model="activeId" @tab-change="onTableChange" class="dc-tabs page-tabs">
+      <el-tab-pane v-for="t in tables" :key="t.id" :name="t.id">
+        <template #label>
+          <span class="tab-label">
+            <el-icon><Tickets /></el-icon>
+            {{ t.name }}
+            <span class="tab-count tabular">{{ t.count }}</span>
+          </span>
+        </template>
+      </el-tab-pane>
+    </el-tabs>
 
     <!-- 工具栏 -->
     <div class="card toolbar">
@@ -505,9 +503,9 @@ function fmtCell(v) {
 <style scoped>
 .data-page { height: 100%; overflow: hidden; }
 
-.tabs-card { padding: 6px 10px; flex: none; }
-/* tabs 样式统一走全局 .dc-tabs（style.css），此处仅收紧卡片内边距 */
-.dc-tabs :deep(.el-tabs__header) { margin: 0; }
+/* tabs 不再嵌卡片，样式走全局 .dc-tabs（style.css） */
+.page-tabs { flex: none; }
+.page-tabs :deep(.el-tabs__header) { margin: 0; }
 .tab-label { display: inline-flex; align-items: center; gap: 5px; max-width: 240px; }
 .tab-count {
   background: color-mix(in srgb, var(--dc-primary) 16%, transparent);

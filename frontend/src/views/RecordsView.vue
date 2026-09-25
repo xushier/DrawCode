@@ -16,11 +16,12 @@
                         start-placeholder="开始日期" end-placeholder="结束日期"
                         class="f-item range" />
         <el-input v-model="q.search" placeholder="搜索内容…" clearable :prefix-icon="Search"
-                  class="f-item search" @input="debouncedLoad" @clear="load" />
-        <el-button type="primary" :icon="Search" @click="load">查询</el-button>
+                  class="f-item search" @input="debouncedLoad" @clear="reload" />
+        <el-button type="primary" :icon="Search" @click="reload">查询</el-button>
         <el-button @click="reset">重置</el-button>
       </div>
-      <div>
+      <div class="toolbar-right">
+        <el-segmented v-model="mode" :options="modeOptions" size="default" @change="reload" />
         <el-button type="danger" plain :icon="Delete" @click="clearAll">清空记录</el-button>
       </div>
     </div>
@@ -71,16 +72,20 @@
       </el-table>
     </div>
 
-    <div class="card pagination-card">
+    <div v-if="mode === 'page'" class="card pagination-card">
       <el-pagination v-model:current-page="page" :page-size="size" :total="total"
                      layout="total, prev, pager, next" background
-                     @update:current-page="load" />
+                     @update:current-page="load(false)" />
+    </div>
+    <!-- 懒加载模式提示 -->
+    <div v-else-if="items.length" class="load-hint muted">
+      {{ hasMore ? '下拉加载更多…' : `已全部加载（${items.length} 条）` }}
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Delete, Right } from '@element-plus/icons-vue'
 import { http } from '@/api'
@@ -103,6 +108,17 @@ const total = ref(0)
 const page = ref(1)
 const size = 20
 const loading = ref(false)
+const loadingMore = ref(false)
+
+/* 展示模式：懒加载 / 分页，本地记忆 */
+const mode = ref(localStorage.getItem('dc-ops-mode') || 'lazy')
+const modeOptions = [
+  { label: '懒加载', value: 'lazy' },
+  { label: '分页', value: 'page' }
+]
+watch(mode, v => localStorage.setItem('dc-ops-mode', v))
+const LAZY_SIZE = 50
+const hasMore = computed(() => items.value.length < total.value)
 
 const TAG_TYPES = {
   record_add: 'success', record_update: 'warning', record_delete: 'danger',
@@ -154,11 +170,13 @@ function fmt(v) {
   return String(v ?? '空') || '空'
 }
 
-async function load() {
-  loading.value = true
+async function load(append = false) {
+  if (append) loadingMore.value = true
+  else loading.value = true
   try {
     const params = {
-      page: page.value, page_size: size,
+      page: page.value,
+      page_size: mode.value === 'page' ? size : LAZY_SIZE,
       search: q.search, user: q.user, action: q.action,
       table_id: q.table_id || ''
     }
@@ -167,26 +185,47 @@ async function load() {
       params.end = range.value[1]
     }
     const res = await http.get('/ops', { params })
-    items.value = res.items
+    if (append) items.value.push(...res.items)
+    else items.value = res.items
     total.value = res.total
     users.value = res.users
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
+}
+
+function reload() {
+  page.value = 1
+  load(false)
+}
+
+/* 懒加载：表格滚动触底自动追加 */
+let scrollEl = null
+let scrollTimer = null
+function onBodyScroll() {
+  if (mode.value !== 'lazy' || !hasMore.value || loadingMore.value || loading.value) return
+  clearTimeout(scrollTimer)
+  scrollTimer = setTimeout(() => {
+    if (!scrollEl) return
+    if (scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 60) {
+      page.value++
+      load(true)
+    }
+  }, 80)
 }
 
 let t = null
 function debouncedLoad() {
   clearTimeout(t)
-  t = setTimeout(load, 300)
+  t = setTimeout(reload, 300)
 }
 
 function reset() {
   q.user = q.action = q.search = ''
   q.table_id = null
   range.value = null
-  page.value = 1
-  load()
+  reload()
 }
 
 async function clearAll() {
@@ -196,16 +235,24 @@ async function clearAll() {
   } catch { return }
   await http.delete('/ops')
   ElMessage.success('操作记录已清空')
-  load()
+  reload()
 }
 
 onMounted(async () => {
-  load()
+  reload()
   try {
     const res = await http.get('/tables')
     tables.value = res.tables
   } catch { /* ignore */ }
+  /* 在 el-table 渲染后挂载滚动监听 */
+  setTimeout(() => {
+    scrollEl = document.querySelector('.records-page .table-card .el-scrollbar__wrap') ||
+              document.querySelector('.records-page .table-card .el-table__body-wrapper')
+    scrollEl?.addEventListener('scroll', onBodyScroll, { passive: true })
+  }, 500)
 })
+
+onBeforeUnmount(() => scrollEl?.removeEventListener('scroll', onBodyScroll))
 </script>
 
 <style scoped>
@@ -221,6 +268,8 @@ onMounted(async () => {
 
 .table-card { flex: 1; min-height: 0; padding: 0; overflow: hidden; }
 .pagination-card { padding: 8px 12px; flex: none; display: flex; justify-content: flex-end; }
+.load-hint { text-align: center; font-size: 12px; padding: 6px 0 2px; flex: none; }
+.toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .row-target { font-weight: 600; color: var(--dc-primary); font-size: 13px; }
 .detail-wrap {

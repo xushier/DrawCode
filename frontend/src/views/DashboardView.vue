@@ -64,16 +64,34 @@
       </el-col>
     </el-row>
 
-    <!-- 日历热力图 -->
-    <el-row>
-      <el-col :span="24">
+    <!-- 日历热力图 + 最近数据 -->
+    <el-row :gutter="12">
+      <el-col :xs="24" :lg="10">
         <CalendarCard />
+      </el-col>
+      <el-col :xs="24" :lg="14">
+        <div class="card recent-card">
+          <div class="card-title">最近添加的数据</div>
+          <el-empty v-if="!recent.length" description="暂无数据" :image-size="60" />
+          <el-scrollbar v-else max-height="300px">
+            <div class="recent-list">
+              <div v-for="r in recent" :key="r.id" class="recent-item">
+                <el-tag size="small" effect="plain" class="recent-table">{{ r.table_name }}</el-tag>
+                <span class="recent-drawing">{{ r.data.drawing_no || '—' }}</span>
+                <span class="recent-name">{{ r.data.name || '' }}</span>
+                <span class="muted recent-meta">
+                  {{ r.data.applicant || '未知' }} · {{ r.created_at }}
+                </span>
+              </div>
+            </div>
+          </el-scrollbar>
+        </div>
       </el-col>
     </el-row>
 
     <el-row :gutter="12">
       <!-- 申请人排行 -->
-      <el-col :xs="24" :lg="8">
+      <el-col :xs="24" :lg="12">
         <div class="card rank-card">
           <div class="card-title">申请人排行榜</div>
           <el-empty v-if="!ranking.length" description="暂无数据" :image-size="60" />
@@ -91,7 +109,7 @@
       </el-col>
 
       <!-- 工程项目排行 -->
-      <el-col :xs="24" :lg="8">
+      <el-col :xs="24" :lg="12">
         <div class="card rank-card">
           <div class="card-title">工程项目排行榜</div>
           <el-empty v-if="!projectRanking.length" description="暂无数据" :image-size="60" />
@@ -105,26 +123,6 @@
               <span class="rank-count tabular">{{ r.count }}</span>
             </div>
           </div>
-        </div>
-      </el-col>
-
-      <!-- 最近数据 -->
-      <el-col :xs="24" :lg="8">
-        <div class="card recent-card">
-          <div class="card-title">最近添加的数据</div>
-          <el-empty v-if="!recent.length" description="暂无数据" :image-size="60" />
-          <el-scrollbar v-else max-height="300px">
-            <div class="recent-list">
-              <div v-for="r in recent" :key="r.id" class="recent-item">
-                <el-tag size="small" effect="plain" class="recent-table">{{ r.table_name }}</el-tag>
-                <span class="recent-drawing">{{ r.data.drawing_no || '—' }}</span>
-                <span class="recent-name">{{ r.data.name || '' }}</span>
-                <span class="muted recent-meta">
-                  {{ r.data.applicant || '未知' }} · {{ r.created_at }}
-                </span>
-              </div>
-            </div>
-          </el-scrollbar>
         </div>
       </el-col>
     </el-row>
@@ -228,9 +226,15 @@ const maxApplicant = computed(() => ranking.value[0]?.count || 1)
 const maxProject = computed(() => projectRanking.value[0]?.count || 1)
 function pct(n, max) { return Math.max(6, Math.round((n / max) * 100)) + '%' }
 
+let ro = null
+
 onMounted(async () => {
   await load()
   window.addEventListener('resize', onResize)
+  /* 监听图表容器尺寸变化：sidebar 折叠/展开时也能触发 resize */
+  ro = new ResizeObserver(onResize)
+  if (growthEl.value) ro.observe(growthEl.value)
+  if (pieEl.value) ro.observe(pieEl.value)
 })
 
 watch(() => [store.theme, store.dark], async () => {
@@ -242,6 +246,7 @@ watch(() => [store.theme, store.dark], async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
+  ro?.disconnect()
   growthChart?.dispose()
   pieChart?.dispose()
 })
