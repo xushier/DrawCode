@@ -94,6 +94,16 @@ html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none
 .op-btns .el-button { margin-left: 0; padding: 4px 10px; }
 .op-btns .el-button + .el-button { margin-left: 6px; }
 .op-btns .el-button.is-text.is-has-bg { background: transparent; }
+/* 默认类型（无 type）的文字按钮：加中性描边，与 primary/danger 风格统一 */
+.op-btns .el-button.is-text.is-has-bg:not(.el-button--primary):not(.el-button--danger) {
+  color: var(--dc-text);
+  border: 1px solid var(--dc-border);
+}
+.op-btns .el-button.is-text.is-has-bg:not(.el-button--primary):not(.el-button--danger):hover {
+  background: var(--dc-bg-soft);
+  border-color: var(--dc-text-soft);
+  color: var(--dc-text);
+}
 .op-btns .el-button--primary.is-text.is-has-bg {
   color: var(--dc-primary);
   border: 1px solid color-mix(in srgb, var(--dc-primary) 50%, transparent);
@@ -117,7 +127,7 @@ html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none
 .dc-tabs .el-tabs__nav {
   position: relative;
   display: flex;
-  padding: 5px;
+  padding: 5px 14px;          /* 水平 14px 与滑块 ±14px 投影对齐，避免首尾被裁切 */
   background: var(--dc-bg-soft);
   border-radius: 10px;
 }
@@ -139,6 +149,11 @@ html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none
   border-radius: 8px; color: var(--dc-text-soft);
   transition: color .2s;
 }
+/* EP 默认把首个可见 tab（active-bar 是 nav 第一个子元素，故首个 tab 为 :nth-child(2)）
+   和最后一个 tab 的外侧内边距清零，此处覆盖回去，保证首尾文字与深色长条边缘有足够间距。
+   选择器加 .el-tabs 提升特异性，压过 EP 同名规则 */
+.el-tabs.dc-tabs .el-tabs__nav > .el-tabs__item:nth-child(2) { padding-left: 18px; }
+.el-tabs.dc-tabs .el-tabs__nav > .el-tabs__item:last-child  { padding-right: 18px; }
 .dc-tabs .el-tabs__item:hover { color: var(--dc-primary); }
 .dc-tabs .el-tabs__item.is-active {
   color: var(--dc-primary); font-weight: 600;
