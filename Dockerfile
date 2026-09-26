@@ -10,7 +10,8 @@ RUN npm run build
 FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     DRAWCODE_DATA_DIR=/app/data \
-    DRAWCODE_PORT=9862
+    DRAWCODE_PORT=9862 \
+    TZ=Asia/Shanghai
 
 # 中文字体（微信图文封面 1068x455 生成需要）
 RUN apt-get update \

@@ -63,7 +63,7 @@ def export_xlsx(table, records, template=False):
     bio = io.BytesIO()
     wb.save(bio)
     bio.seek(0)
-    fname = f"{table['name']}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    fname = f"{table['name']}_{D.now().strftime('%Y%m%d')}.xlsx"
     from flask import Response
     return Response(
         bio.read(),

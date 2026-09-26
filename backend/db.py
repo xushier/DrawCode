@@ -17,11 +17,31 @@ AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
 
 _write_lock = threading.Lock()
 
-VERSION = "1.3.0"
+# 时区：Docker 容器默认 UTC（比北京时间少 8 小时），显式按东八区取时间，
+# 可用环境变量 DRAWCODE_TZ 覆盖；时区库不可用时回退系统本地时间
+try:
+    from zoneinfo import ZoneInfo
+    _TZ = ZoneInfo(os.environ.get("DRAWCODE_TZ") or "Asia/Shanghai")
+except Exception:
+    _TZ = None
+
+
+def now():
+    """当前时间（默认东八区）"""
+    return datetime.now(_TZ)
+
+VERSION = "1.3.1"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.3.1",
+        "date": "2026-09-26",
+        "items": [
+            "修复 Docker 内时区为 UTC 导致封面时间、日志时间比北京时间少 8 小时的问题",
+        ],
+    },
     {
         "version": "1.3.0",
         "date": "2026-09-26",
@@ -135,7 +155,7 @@ SYSTEM_TABLES = [
 
 
 def now_str():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def site_names(org):
@@ -310,7 +330,7 @@ def init_db():
 
 def create_session(user_id):
     token = secrets.token_hex(32)
-    expires = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    expires = (now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     execute(
         "INSERT INTO sessions(token, user_id, created_at, expires_at) VALUES(?,?,?,?)",
         (token, user_id, now_str(), expires))

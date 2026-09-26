@@ -9,7 +9,6 @@ import os
 import random
 import threading
 import time
-from datetime import datetime
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -175,8 +174,8 @@ def make_cover(title, lines, footer_left):
                       font=f_line, fill=inks[i]["value"])
             y += 78
 
-    # 右下角时间（右对齐）
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    # 右下角时间（右对齐，东八区）
+    ts = D.now().strftime("%Y-%m-%d %H:%M")
     draw.text((COVER_W - 56 - int(draw.textlength(ts, font=f_small)), COVER_H - 58),
               ts, font=f_small, fill=ink_time["time"])
     return img

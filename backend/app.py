@@ -221,13 +221,13 @@ def create_app():
         total = sum(counts.values())
 
         def day_count(days):
-            start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d 00:00:00")
+            start = (D.now() - timedelta(days=days)).strftime("%Y-%m-%d 00:00:00")
             row = D.query("SELECT COUNT(*) c FROM records WHERE created_at >= ?",
                           (start,), one=True)
             return row["c"]
 
         growth = []
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = D.now().replace(hour=0, minute=0, second=0, microsecond=0)
         for i in range(29, -1, -1):
             d = today - timedelta(days=i)
             ds = d.strftime("%Y-%m-%d")
@@ -269,7 +269,7 @@ def create_app():
     def dash_calendar():
         """按月返回每日新增数据量（热力图日历用）"""
         month = (request.args.get("month") or
-                 datetime.now().strftime("%Y-%m")).strip()
+                 D.now().strftime("%Y-%m")).strip()
         if not re.match(r"^\d{4}-\d{2}$", month):
             return jsonify(ok=False, message="月份格式应为 YYYY-MM"), 400
         rows = D.query(
@@ -284,7 +284,7 @@ def create_app():
     def dash_day():
         """某天新增 / 修改的记录列表（日历点击弹窗用）"""
         date = (request.args.get("date") or
-                datetime.now().strftime("%Y-%m-%d")).strip()
+                D.now().strftime("%Y-%m-%d")).strip()
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
             return jsonify(ok=False, message="日期格式应为 YYYY-MM-DD"), 400
         rows = D.query(
@@ -508,7 +508,7 @@ def create_app():
 
     def _create_backup(reason="manual", user="系统"):
         os.makedirs(BACKUP_DIR, exist_ok=True)
-        fname = "drawcode-backup-%s.db" % datetime.now().strftime("%Y%m%d-%H%M%S")
+        fname = "drawcode-backup-%s.db" % D.now().strftime("%Y%m%d-%H%M%S")
         dest = os.path.join(BACKUP_DIR, fname)
         src = sqlite3.connect(D.DB_PATH)
         dst = sqlite3.connect(dest)
@@ -608,7 +608,7 @@ def create_app():
             try:
                 if D.get_setting("log_auto_clear") == "1":
                     days = int(D.get_setting("log_retention_days", "30") or 30)
-                    deadline = (datetime.now() - timedelta(days=days)).strftime(
+                    deadline = (D.now() - timedelta(days=days)).strftime(
                         "%Y-%m-%d %H:%M:%S")
                     D.execute("DELETE FROM sys_logs WHERE created_at < ?", (deadline,))
                 # 清理过期会话
