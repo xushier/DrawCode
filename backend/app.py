@@ -148,6 +148,7 @@ def create_app():
             ok=True,
             authed=bool(u),
             guest_mode=gm,
+            allow_register=settings["allow_register"] == "1",
             user={"id": u["id"], "username": u["username"],
                   "avatar": u["avatar"], "role": u["role"] or "user"} if u else None,
             site={
@@ -159,6 +160,41 @@ def create_app():
                 "github": D.GITHUB_URL,
                 "author": D.AUTHOR,
             })
+
+    # ---------- 自助注册 ----------
+    @app.post("/api/auth/register")
+    def register():
+        if D.get_setting("allow_register") != "1":
+            return jsonify(ok=False, message="当前未开放注册，请联系管理员"), 403
+        body = request.get_json(force=True, silent=True) or {}
+        username = str(body.get("username") or "").strip()
+        password = str(body.get("password") or "")
+        if not username or len(username) > 40:
+            return jsonify(ok=False, message="请输入用户名（40 字以内）"), 400
+        if len(password) < 8:
+            return jsonify(ok=False, message="密码至少 8 位"), 400
+        if D.query("SELECT id FROM users WHERE username=?", (username,), one=True):
+            return jsonify(ok=False, message="用户名已被使用，请换一个"), 409
+        D.execute(
+            "INSERT INTO users(username, password_hash, avatar, role, created_at) VALUES(?,?,?,?,?)",
+            (username, generate_password_hash(password), "", "user", D.now_str()))
+        D.sys_log("INFO", "AUTH", f"新用户注册: {username}")
+        D.log_op(username, "register")
+        # 注册即登录
+        user = D.query("SELECT * FROM users WHERE username=?", (username,), one=True)
+        token = D.create_session(user["id"])
+        return jsonify(ok=True, token=token, user={
+            "username": user["username"], "avatar": user["avatar"],
+            "role": user["role"] or "user"})
+
+    @app.get("/api/auth/check-username")
+    def check_username():
+        if D.get_setting("allow_register") != "1":
+            return jsonify(ok=False, message="未开放注册"), 403
+        username = (request.args.get("username") or "").strip()
+        taken = bool(username) and bool(
+            D.query("SELECT id FROM users WHERE username=?", (username,), one=True))
+        return jsonify(ok=True, username=username, taken=taken)
 
     # ---------- 用户管理 ----------
     def _admin_count():
@@ -202,6 +238,17 @@ def create_app():
             return jsonify(ok=False, message="用户不存在"), 404
         body = request.get_json(force=True, silent=True) or {}
         detail = {}
+        username = str(body.get("username") or "").strip()
+        if username and username != target["username"]:
+            if not username or len(username) > 40:
+                return jsonify(ok=False, message="请输入合法用户名（40 字以内）"), 400
+            if D.query("SELECT id FROM users WHERE username=?", (username,), one=True):
+                return jsonify(ok=False, message="用户名已存在"), 400
+            D.execute("UPDATE users SET username=? WHERE id=?", (username, uid))
+            # 同步其历史数据的创建人，保证本人仍可编辑自己的记录
+            D.execute("UPDATE records SET created_by=? WHERE created_by=?",
+                      (username, target["username"]))
+            detail["用户名"] = f"{target['username']} → {username}"
         role = body.get("role")
         if role is not None:
             if role not in ("admin", "user"):
@@ -240,6 +287,14 @@ def create_app():
         D.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
         D.log_op(me["username"], "user_delete", target=target["username"])
         return jsonify(ok=True, message="用户已删除")
+
+    @app.get("/api/applicants")
+    def list_applicants():
+        """申请人候选列表（全部账号用户名），申请权限内可用"""
+        if not can_add():
+            return jsonify(ok=False, message="当前未开放申请权限"), 401
+        rows = D.query("SELECT username FROM users ORDER BY id")
+        return jsonify(ok=True, applicants=[r["username"] for r in rows])
 
     @app.post("/api/auth/password")
     @login_required

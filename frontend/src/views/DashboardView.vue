@@ -302,13 +302,16 @@ onBeforeUnmount(() => {
 .recent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-meta { margin-left: auto; flex: none; font-size: 12px; }
 
-@media (max-width: 768px) {
-  .recent-meta { display: none; }
-  .chart { height: 220px; }
-  /* 移动端：同屏多卡片时保证垂直间距 */
+/* <1200px（lg 断点前）：同行多卡在窄屏改为全宽堆叠，需列间垂直间距防粘连 */
+@media (max-width: 1199px) {
   .dash .el-col { margin-bottom: 12px; }
   .dash .el-row { margin-bottom: 0; }
   .dash .el-row:last-child .el-col:last-child { margin-bottom: 0; }
   .stat-row { row-gap: 0; }
+}
+
+@media (max-width: 768px) {
+  .recent-meta { display: none; }
+  .chart { height: 220px; }
 }
 </style>

@@ -456,7 +456,12 @@ def create_record(tid):
         return jsonify(ok=False, message="表不存在"), 404
     body = request.get_json(force=True, silent=True) or {}
     user = g.req_user_name()
-    record, err = do_create_record(table, body.get("data") or {}, user)
+    data = body.get("data") or {}
+    # 登录用户：申请人锁定为当前用户名；访客：保留下拉选择/自行输入的值
+    u = g.current_user()
+    if u and any(f["key"] == "applicant" for f in table["fields"]):
+        data["applicant"] = u["username"]
+    record, err = do_create_record(table, data, user)
     if err:
         return jsonify(ok=False, message=err), 409 if "已被申请使用" in err else 400
     D.log_op(user, "record_add", tid, table["name"],

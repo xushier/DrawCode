@@ -97,7 +97,7 @@ import { Search, Delete, Right } from '@element-plus/icons-vue'
 import { http } from '@/api'
 
 const ACTIONS = {
-  login: '登录', logout: '退出', password_change: '修改密码', avatar_change: '更换头像',
+  login: '登录', logout: '退出', register: '注册', password_change: '修改密码', avatar_change: '更换头像',
   record_add: '新增数据', record_update: '修改数据', record_delete: '删除数据',
   import: '导入数据', export: '导出数据',
   table_create: '新建数据表', table_rename: '重命名数据表', table_delete: '删除数据表',

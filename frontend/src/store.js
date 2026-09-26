@@ -15,6 +15,7 @@ export const useApp = defineStore('app', {
     ready: false,
     authed: false,
     guestMode: 'off',          // off | readonly | add
+    allowRegister: false,       // 是否开放自助注册（管理员设置）
     user: null,
     site: {
       name: '智能图号系统', subtitle: '智能装备研究院图号系统', org: '智能装备研究院',
@@ -69,6 +70,7 @@ export const useApp = defineStore('app', {
         const res = await http.get('/auth/status', { headers: { 'X-Silent': 1 } })
         this.authed = res.authed
         this.guestMode = res.guest_mode || 'off'
+        this.allowRegister = !!res.allow_register
         this.user = res.user
         if (res.site) this.site = res.site
       } catch (e) {
@@ -86,6 +88,13 @@ export const useApp = defineStore('app', {
     },
     async login(username, password) {
       const res = await http.post('/auth/login', { username, password })
+      localStorage.setItem('dc-token', res.token)
+      this.authed = true
+      this.user = res.user
+      await this.init(true)
+    },
+    async register(username, password) {
+      const res = await http.post('/auth/register', { username, password })
       localStorage.setItem('dc-token', res.token)
       this.authed = true
       this.user = res.user

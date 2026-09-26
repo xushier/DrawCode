@@ -19,6 +19,16 @@
                   未登录访客的权限：关闭则必须登录；只读浏览可查看、筛选、导出；可添加还能申请图号（不能修改删除）
                 </div>
               </el-form-item>
+              <el-form-item label="允许注册">
+                <div class="inline-row">
+                  <el-switch v-model="registerBool" />
+                  <span class="muted" v-if="registerBool">已开放：登录页将显示「立即注册」入口</span>
+                  <span class="muted" v-else>已关闭：新用户需由管理员在用户管理中创建</span>
+                </div>
+                <div class="field-hint muted">
+                  开启后用户可在登录页自助注册（默认普通用户），用户名建议真实姓名、密码至少 8 位
+                </div>
+              </el-form-item>
               <el-form-item label="日志自动清理">
                 <div class="inline-row">
                   <el-switch v-model="logAutoBool" />
@@ -54,13 +64,10 @@
               </template>
             </el-table-column>
             <el-table-column prop="created_at" label="创建时间" width="160" align="center" />
-            <el-table-column label="操作" width="220" align="center">
+            <el-table-column label="操作" width="240" align="center">
               <template #default="{ row }">
                 <div class="op-btns">
-                  <el-button size="small" :type="row.role === 'admin' ? 'warning' : 'primary'"
-                             text bg @click="toggleUserRole(row)">
-                    {{ row.role === 'admin' ? '降为用户' : '设为管理员' }}
-                  </el-button>
+                  <el-button size="small" type="primary" text bg @click="openUserEdit(row)">编辑</el-button>
                   <el-button size="small" text bg @click="resetUserPwd(row)">重置密码</el-button>
                   <el-button v-if="row.id !== store.user?.id" size="small" type="danger"
                              text bg @click="deleteUser(row)">删除</el-button>
@@ -451,6 +458,27 @@
         <el-button type="primary" :loading="userSaving" @click="createUser">创 建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑用户 -->
+    <el-dialog v-model="userEditOpen" title="编辑用户" width="440px" append-to-body destroy-on-close>
+      <el-form label-width="90px">
+        <el-form-item label="用户名" required>
+          <el-input v-model="userEdit.username" placeholder="登录账号，40 字以内" maxlength="40" />
+          <div class="field-hint muted">用户名不是真实姓名时可在此修改，其历史数据的创建人将同步更新</div>
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-radio-group v-model="userEdit.role" :disabled="userEdit.id === store.user?.id">
+            <el-radio value="user">普通用户</el-radio>
+            <el-radio value="admin">管理员</el-radio>
+          </el-radio-group>
+          <div class="field-hint muted" v-if="userEdit.id === store.user?.id">不能修改自己的角色</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="userEditOpen = false">取 消</el-button>
+        <el-button type="primary" :loading="userEditSaving" @click="saveUserEdit">保 存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -492,8 +520,10 @@ const notifyOn = ref(false)
 const notifyAdd = ref(true)
 const notifyDel = ref(true)
 const testing = ref(false)
+const registerBool = ref(false)
 
 watch(logAutoBool, v => { form.log_auto_clear = v ? '1' : '0' })
+watch(registerBool, v => { form.allow_register = v ? '1' : '0' })
 watch(notifyOn, v => { form.notify_enabled = v ? '1' : '0' })
 watch(notifyAdd, v => { form.notify_on_add = v ? '1' : '0' })
 watch(notifyDel, v => { form.notify_on_delete = v ? '1' : '0' })
@@ -503,6 +533,7 @@ async function loadSettings() {
   Object.assign(form, res.settings)
   if (!guestOptions.some(o => o.value === form.guest_mode)) form.guest_mode = 'off'
   logAutoBool.value = form.log_auto_clear === '1'
+  registerBool.value = form.allow_register === '1'
   notifyOn.value = form.notify_enabled === '1'
   notifyAdd.value = form.notify_on_add === '1'
   notifyDel.value = form.notify_on_delete === '1'
@@ -514,6 +545,7 @@ async function saveBasic() {
   try {
     await http.put('/settings', {
       site_org: form.site_org.trim(), guest_mode: form.guest_mode,
+      allow_register: form.allow_register,
       log_auto_clear: form.log_auto_clear, log_retention_days: String(form.log_retention_days)
     })
     await store.init(true)
@@ -790,16 +822,29 @@ async function createUser() {
   } finally { userSaving.value = false }
 }
 
-async function toggleUserRole(row) {
-  const toAdmin = row.role !== 'admin'
+/* ---------------- 编辑用户 ---------------- */
+const userEditOpen = ref(false)
+const userEditSaving = ref(false)
+const userEdit = reactive({ id: null, username: '', role: 'user' })
+
+function openUserEdit(row) {
+  Object.assign(userEdit, { id: row.id, username: row.username, role: row.role || 'user' })
+  userEditOpen.value = true
+}
+
+async function saveUserEdit() {
+  const name = userEdit.username.trim()
+  if (!name) return ElMessage.warning('请输入用户名')
+  if (name.length > 40) return ElMessage.warning('用户名需在 40 字以内')
+  userEditSaving.value = true
   try {
-    await ElMessageBox.confirm(
-      `确定将「${row.username}」${toAdmin ? '设为管理员（拥有全部权限）' : '降为普通用户（仅能操作自己创建的数据）'}吗？`,
-      '切换角色', { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' })
-  } catch { return }
-  await http.put(`/users/${row.id}`, { role: toAdmin ? 'admin' : 'user' })
-  ElMessage.success('角色已更新')
-  loadUsers()
+    await http.put(`/users/${userEdit.id}`, { username: name, role: userEdit.role })
+    ElMessage.success('用户已更新')
+    userEditOpen.value = false
+    loadUsers()
+    // 改自己时刷新全局状态（用户名、头像等）
+    if (userEdit.id === store.user?.id) await store.init(true)
+  } finally { userEditSaving.value = false }
 }
 
 async function resetUserPwd(row) {

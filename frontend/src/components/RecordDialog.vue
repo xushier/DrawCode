@@ -11,6 +11,18 @@
             <el-input v-if="f.key === 'sn'" :model-value="snDisplay" disabled>
               <template #suffix><span class="muted">自动</span></template>
             </el-input>
+            <!-- 申请人：登录用户新增时锁定为当前用户名 -->
+            <el-input v-else-if="f.key === 'applicant' && !isEdit && store.authed"
+                      :model-value="store.user?.username" disabled>
+              <template #suffix><span class="muted">自动</span></template>
+            </el-input>
+            <!-- 申请人：访客新增 / 任意编辑 —— 下拉选择或自行输入（选项含全部账号） -->
+            <el-select v-else-if="f.key === 'applicant'"
+                       v-model="form[f.key]" filterable allow-create default-first-option
+                       :reserve-keyword="false"
+                       placeholder="可搜索选择，无则直接输入" clearable>
+              <el-option v-for="o in applicantOptions(f.key)" :key="o" :label="o" :value="o" />
+            </el-select>
             <!-- 单选组 -->
             <el-radio-group v-else-if="f.type === 'radio'" v-model="form[f.key]">
               <el-radio v-for="o in opts(f.key)" :key="o" :value="o" border size="small">{{ o }}</el-radio>
@@ -64,6 +76,9 @@
 import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { http } from '@/api'
+import { useApp } from '@/store'
+
+const store = useApp()
 
 const props = defineProps({
   modelValue: Boolean,
@@ -88,6 +103,20 @@ const saving = ref(false)
 
 const defaultTime = new Date(2000, 0, 1, 12, 0, 0)
 
+// 申请人候选：全部账号用户名 + 该字段已有可选值（去重）
+const applicants = ref([])
+async function loadApplicants() {
+  try {
+    const res = await http.get('/applicants', { headers: { 'X-Silent': 1 } })
+    applicants.value = res.applicants || []
+  } catch (e) { applicants.value = [] }
+}
+function applicantOptions(key) {
+  const list = [...applicants.value]
+  for (const o of opts(key)) if (!list.includes(o)) list.push(o)
+  return list
+}
+
 const snDisplay = computed(() => {
   if (isEdit.value) return props.record?.data?.sn ?? ''
   return '自动生成'
@@ -111,6 +140,8 @@ function rules(f) {
 
 function onOpen() {
   Object.keys(form).forEach(k => delete form[k])
+  // 含申请人字段时加载账号用户名候选（每次打开刷新，注册新用户后立即可选）
+  if (fields.value.some(f => f.key === 'applicant')) loadApplicants()
   for (const f of fields.value) {
     let v = null
     if (isEdit.value) {

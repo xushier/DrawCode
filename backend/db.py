@@ -30,11 +30,21 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.1"
+VERSION = "1.5.2"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.2",
+        "date": "2026-09-27",
+        "items": [
+            "自助注册：管理员可开关，登录页支持注册（用户名实时查重，密码至少 8 位）",
+            "用户管理支持修改用户名（同步其历史数据的创建人）",
+            "申请人字段：登录用户自动锁定为当前用户名，访客可下拉选择或输入（选项含全部账号）",
+            "修复仪表盘在 740px 等平板宽度下卡片垂直粘连",
+        ],
+    },
     {
         "version": "1.5.1",
         "date": "2026-09-27",
@@ -128,6 +138,7 @@ CHANGELOG = [
 DEFAULT_SETTINGS = {
     "site_org": "智能装备研究院",
     "guest_mode": "off",              # off 关闭 | readonly 只读浏览 | add 可添加
+    "allow_register": "0",           # 是否开放自助注册 1/0
     "notify_enabled": "0",
     "notify_type": "robot",          # robot | wecom_app
     "notify_webhook": "",
