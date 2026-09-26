@@ -2,7 +2,7 @@
   <div class="page settings-page">
     <el-tabs v-model="tab" class="settings-tabs dc-tabs">
       <!-- 基本设置 -->
-      <el-tab-pane label="基本设置" name="basic">
+      <el-tab-pane label="基本设置" name="basic" v-if="store.isAdmin">
         <div class="pane">
           <div class="pane-center">
             <div class="pane-title">基本设置</div>
@@ -14,8 +14,10 @@
                 </div>
               </el-form-item>
               <el-form-item label="访客模式">
-                <el-switch v-model="guestModeBool" />
-                <div class="field-hint muted">开启后，未登录的访客可浏览图号数据并申请图号（仅新增）</div>
+                <el-segmented v-model="form.guest_mode" :options="guestOptions" />
+                <div class="field-hint muted">
+                  未登录访客的权限：关闭则必须登录；只读浏览可查看、筛选、导出；可添加还能申请图号（不能修改删除）
+                </div>
               </el-form-item>
               <el-form-item label="日志自动清理">
                 <div class="inline-row">
@@ -34,8 +36,50 @@
         </div>
       </el-tab-pane>
 
+      <!-- 用户管理 -->
+      <el-tab-pane label="用户管理" name="users" v-if="store.isAdmin">
+        <div class="pane pane-table">
+          <div class="pane-head">
+            <div class="pane-title">用户管理</div>
+            <el-button type="primary" :icon="Plus" @click="openUserCreate">新建用户</el-button>
+          </div>
+          <el-table :data="users" stripe size="small" class="dc-table">
+            <el-table-column prop="username" label="用户名" min-width="150" show-overflow-tooltip />
+            <el-table-column label="角色" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" effect="plain"
+                        :type="row.role === 'admin' ? 'danger' : 'info'">
+                  {{ row.role === 'admin' ? '管理员' : '普通用户' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="登录方式" width="100" align="center">
+              <template #default="{ row }">{{ row.wecom_userid ? '企业微信' : '账号密码' }}</template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="160" align="center" />
+            <el-table-column label="操作" width="220" align="center">
+              <template #default="{ row }">
+                <div class="op-btns">
+                  <el-button size="small" :type="row.role === 'admin' ? 'warning' : 'primary'"
+                             text bg @click="toggleUserRole(row)">
+                    {{ row.role === 'admin' ? '降为用户' : '设为管理员' }}
+                  </el-button>
+                  <el-button size="small" text bg @click="resetUserPwd(row)">重置密码</el-button>
+                  <el-button v-if="row.id !== store.user?.id" size="small" type="danger"
+                             text bg @click="deleteUser(row)">删除</el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="muted backup-tip">
+            普通用户登录后可申请图号，仅能修改、删除自己创建的数据；管理员拥有全部权限。
+            配置企业微信应用（企业 ID / 密钥 / AgentId）后，登录页将出现「企业微信登录」，首次登录自动创建用户。
+          </div>
+        </div>
+      </el-tab-pane>
+
       <!-- 表管理 -->
-      <el-tab-pane label="表管理" name="tables">
+      <el-tab-pane label="表管理" name="tables" v-if="store.isAdmin">
         <div class="pane pane-table">
           <div class="pane-head">
             <div class="pane-title">数据表管理</div>
@@ -66,7 +110,7 @@
       </el-tab-pane>
 
       <!-- 通知 -->
-      <el-tab-pane label="微信通知" name="notify">
+      <el-tab-pane label="微信通知" name="notify" v-if="store.isAdmin">
         <div class="pane">
           <div class="pane-center">
             <div class="pane-title">微信通知</div>
@@ -171,7 +215,7 @@
               </div>
               <el-switch :model-value="store.dark" @update:model-value="store.setDark" />
             </div>
-            <div class="dark-row">
+            <div class="dark-row" v-if="store.isAdmin">
               <div>
                 <div>表格边框</div>
                 <div class="muted" style="font-size: 12px">开启后所有表格显示列分隔线，全局生效</div>
@@ -205,7 +249,7 @@
               <el-avatar :size="56" :src="avatarUrl"
                          style="background: var(--dc-primary); font-size: 22px; flex: none">A</el-avatar>
               <div class="avatar-info">
-                <div class="avatar-name">{{ store.user?.username || 'admin' }}</div>
+                <div class="avatar-name">{{ store.user?.username }}</div>
                 <div class="muted" style="font-size: 12px">支持 PNG / JPG / GIF / WebP，上传后自动替换旧头像</div>
               </div>
               <el-upload :show-file-list="false" :auto-upload="false" accept="image/*"
@@ -213,12 +257,15 @@
                 <el-button>更换头像</el-button>
               </el-upload>
             </div>
+            <div v-if="store.user?.wecom" class="field-hint muted" style="margin-top: 14px">
+              当前账号通过企业微信登录；如需使用账号密码登录，请管理员在「用户管理」中重置密码。
+            </div>
           </div>
         </div>
       </el-tab-pane>
 
       <!-- 备份恢复 -->
-      <el-tab-pane label="备份恢复" name="backup">
+      <el-tab-pane label="备份恢复" name="backup" v-if="store.isAdmin">
         <div class="pane pane-backup">
           <div class="pane-head">
             <div class="pane-title">备份与恢复</div>
@@ -389,6 +436,28 @@
         <el-button type="primary" :loading="savingField" @click="saveField">保 存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 新建用户 -->
+    <el-dialog v-model="userOpen" title="新建用户" width="440px" append-to-body destroy-on-close>
+      <el-form label-width="90px">
+        <el-form-item label="用户名" required>
+          <el-input v-model="userForm.username" placeholder="登录账号，40 字以内" maxlength="40" />
+        </el-form-item>
+        <el-form-item label="初始密码" required>
+          <el-input v-model="userForm.password" placeholder="至少 4 位" show-password />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-radio-group v-model="userForm.role">
+            <el-radio value="user">普通用户</el-radio>
+            <el-radio value="admin">管理员</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="userOpen = false">取 消</el-button>
+        <el-button type="primary" :loading="userSaving" @click="createUser">创 建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -420,14 +489,17 @@ const mix = c => `color-mix(in srgb, ${c} 40%, #e8edf2)`
 /* ---------------- 基本设置 ---------------- */
 const form = reactive({})
 const saving = ref(false)
-const guestModeBool = ref(false)
+const guestOptions = [
+  { label: '关闭', value: 'off' },
+  { label: '只读浏览', value: 'readonly' },
+  { label: '可添加', value: 'add' }
+]
 const logAutoBool = ref(false)
 const notifyOn = ref(false)
 const notifyAdd = ref(true)
 const notifyDel = ref(true)
 const testing = ref(false)
 
-watch(guestModeBool, v => { form.guest_mode = v ? '1' : '0' })
 watch(logAutoBool, v => { form.log_auto_clear = v ? '1' : '0' })
 watch(notifyOn, v => { form.notify_enabled = v ? '1' : '0' })
 watch(notifyAdd, v => { form.notify_on_add = v ? '1' : '0' })
@@ -436,7 +508,7 @@ watch(notifyDel, v => { form.notify_on_delete = v ? '1' : '0' })
 async function loadSettings() {
   const res = await http.get('/settings')
   Object.assign(form, res.settings)
-  guestModeBool.value = form.guest_mode === '1'
+  if (!guestOptions.some(o => o.value === form.guest_mode)) form.guest_mode = 'off'
   logAutoBool.value = form.log_auto_clear === '1'
   notifyOn.value = form.notify_enabled === '1'
   notifyAdd.value = form.notify_on_add === '1'
@@ -451,7 +523,7 @@ async function saveBasic() {
       site_org: form.site_org.trim(), guest_mode: form.guest_mode,
       log_auto_clear: form.log_auto_clear, log_retention_days: String(form.log_retention_days)
     })
-    await store.init()
+    await store.init(true)
     ElMessage.success('设置已保存')
   } finally { saving.value = false }
 }
@@ -695,6 +767,71 @@ async function deleteField(f) {
   }
 }
 
+/* ---------------- 用户管理 ---------------- */
+const users = ref([])
+const userOpen = ref(false)
+const userSaving = ref(false)
+const userForm = reactive({ username: '', password: '', role: 'user' })
+
+async function loadUsers() {
+  const res = await http.get('/users')
+  users.value = res.users || []
+}
+
+function openUserCreate() {
+  Object.assign(userForm, { username: '', password: '', role: 'user' })
+  userOpen.value = true
+}
+
+async function createUser() {
+  if (!userForm.username.trim()) return ElMessage.warning('请输入用户名')
+  if (!userForm.password || userForm.password.length < 4) return ElMessage.warning('初始密码至少 4 位')
+  userSaving.value = true
+  try {
+    await http.post('/users', {
+      username: userForm.username.trim(), password: userForm.password, role: userForm.role
+    })
+    ElMessage.success('用户已创建')
+    userOpen.value = false
+    loadUsers()
+  } finally { userSaving.value = false }
+}
+
+async function toggleUserRole(row) {
+  const toAdmin = row.role !== 'admin'
+  try {
+    await ElMessageBox.confirm(
+      `确定将「${row.username}」${toAdmin ? '设为管理员（拥有全部权限）' : '降为普通用户（仅能操作自己创建的数据）'}吗？`,
+      '切换角色', { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' })
+  } catch { return }
+  await http.put(`/users/${row.id}`, { role: toAdmin ? 'admin' : 'user' })
+  ElMessage.success('角色已更新')
+  loadUsers()
+}
+
+async function resetUserPwd(row) {
+  let value
+  try {
+    ({ value } = await ElMessageBox.prompt(`为「${row.username}」设置新密码`, '重置密码', {
+      inputType: 'password', inputPattern: /^.{4,}$/, inputErrorMessage: '密码至少 4 位',
+      confirmButtonText: '重置', cancelButtonText: '取消'
+    }))
+  } catch { return }
+  await http.put(`/users/${row.id}`, { password: value })
+  ElMessage.success('密码已重置')
+}
+
+async function deleteUser(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除用户「${row.username}」吗？其创建的数据将保留。`, '删除用户',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  await http.delete(`/users/${row.id}`)
+  ElMessage.success('用户已删除')
+  loadUsers()
+}
+
 /* ---------------- 账户安全 ---------------- */
 const pwd = reactive({ old: '', new: '', confirm: '' })
 const pwdSaving = ref(false)
@@ -725,10 +862,15 @@ async function onAvatarChange(file) {
 
 onMounted(() => {
   if (route.query.tab) tab.value = String(route.query.tab)
-  loadSettings()
-  loadTables()
-  loadBackups()
-  loadFonts()
+  // 非管理员仅可见账户安全与关于，其余 tab 数据不加载
+  if (!store.isAdmin && !['security', 'about'].includes(tab.value)) tab.value = 'security'
+  if (store.isAdmin) {
+    loadSettings()
+    loadTables()
+    loadBackups()
+    loadFonts()
+    loadUsers()
+  }
 })
 </script>
 

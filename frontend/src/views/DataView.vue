@@ -16,12 +16,12 @@
     <!-- 工具栏 -->
     <div class="card toolbar">
       <div class="toolbar-left">
-        <el-button type="primary" :icon="Plus" @click="openCreate">申请图号</el-button>
-        <el-button v-if="store.authed && selMode !== 'none' && selectedRows.length"
+        <el-button v-if="store.canAdd" type="primary" :icon="Plus" @click="openCreate">申请图号</el-button>
+        <el-button v-if="store.isAdmin && selMode !== 'none' && selectedRows.length"
                    type="danger" plain :icon="Delete" @click="onBatchDelete">
           删除选中（{{ selectedRows.length }}）
         </el-button>
-        <el-button v-if="store.authed" :icon="Upload" @click="importVisible = true">导入</el-button>
+        <el-button v-if="store.isAdmin" :icon="Upload" @click="importVisible = true">导入</el-button>
         <el-button :icon="Download" :loading="exporting" @click="doExport">导出</el-button>
       </div>
       <div class="toolbar-right">
@@ -73,7 +73,8 @@
                 @sort-change="onSortChange" @row-click="onRowClick"
                 @selection-change="onSelectionChange" v-el-scroll>
         <template #empty>
-          <el-empty :description="search || filterCount ? '未找到匹配数据' : '暂无数据，点击「申请图号」新增'"
+          <el-empty :description="search || filterCount ? '未找到匹配数据'
+            : (store.canAdd ? '暂无数据，点击「申请图号」新增' : '暂无数据')"
                     :image-size="72" />
         </template>
         <el-table-column v-if="selMode === 'multi'" type="selection" width="42" />
@@ -102,10 +103,13 @@
         </el-table-column>
         <el-table-column v-if="store.authed" label="操作" width="132" fixed="right" align="center">
           <template #default="{ row }">
-            <div class="op-btns">
-              <el-button size="small" type="primary" text bg @click="openEdit(row)">编辑</el-button>
-              <el-button size="small" type="danger" text bg @click="onDelete(row)">删除</el-button>
-            </div>
+            <template v-if="store.isAdmin || row.created_by === store.user?.username">
+              <div class="op-btns">
+                <el-button size="small" type="primary" text bg @click="openEdit(row)">编辑</el-button>
+                <el-button size="small" type="danger" text bg @click="onDelete(row)">删除</el-button>
+              </div>
+            </template>
+            <span v-else class="muted" style="font-size: 12px">—</span>
           </template>
         </el-table-column>
       </el-table>

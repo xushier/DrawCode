@@ -449,10 +449,8 @@ def list_records(tid):
 
 @tables_bp.post("/tables/<int:tid>/records")
 def create_record(tid):
-    is_admin = g.is_admin()
-    guest = D.get_setting("guest_mode") == "1"
-    if not (is_admin or guest):
-        return jsonify(ok=False, message="请先登录"), 401
+    if not g.can_add():
+        return jsonify(ok=False, message="当前未开放申请权限，请先登录"), 401
     table = get_table(tid)
     if not table:
         return jsonify(ok=False, message="表不存在"), 404
@@ -471,13 +469,24 @@ def create_record(tid):
     return jsonify(ok=True, record=record_row(record))
 
 
-@tables_bp.put("/records/<int:rid>")
-def update_record(rid):
-    if not g.is_admin():
-        return jsonify(ok=False, message="需要管理员权限"), 401
+def _check_owner(rid):
+    """登录用户可操作自己的记录，管理员可操作全部；返回 (user, record) 或错误响应"""
+    u = g.current_user()
+    if not u:
+        return None, None, (jsonify(ok=False, message="请先登录"), 401)
     r = D.query("SELECT * FROM records WHERE id=?", (rid,), one=True)
     if not r:
-        return jsonify(ok=False, message="记录不存在"), 404
+        return None, None, (jsonify(ok=False, message="记录不存在"), 404)
+    if u["role"] != "admin" and r["created_by"] != u["username"]:
+        return None, None, (jsonify(ok=False, message="只能操作自己创建的数据"), 403)
+    return u, r, None
+
+
+@tables_bp.put("/records/<int:rid>")
+def update_record(rid):
+    u, r, err = _check_owner(rid)
+    if err:
+        return err
     table = get_table(r["table_id"])
     old = json.loads(r["data"])
     body = request.get_json(force=True, silent=True) or {}
@@ -511,11 +520,9 @@ def update_record(rid):
 
 @tables_bp.delete("/records/<int:rid>")
 def delete_record(rid):
-    if not g.is_admin():
-        return jsonify(ok=False, message="需要管理员权限"), 401
-    r = D.query("SELECT * FROM records WHERE id=?", (rid,), one=True)
-    if not r:
-        return jsonify(ok=False, message="记录不存在"), 404
+    u, r, err = _check_owner(rid)
+    if err:
+        return err
     table = get_table(r["table_id"])
     data = json.loads(r["data"])
     D.execute("DELETE FROM records WHERE id=?", (rid,))

@@ -28,6 +28,7 @@
           </span>
           <span class="header-title">{{ route.meta.title }}</span>
           <el-tag v-if="!store.authed" size="small" type="info" effect="plain">访客</el-tag>
+          <el-tag v-else-if="!store.isAdmin" size="small" type="info" effect="plain">用户</el-tag>
         </div>
         <div class="header-right">
           <el-dropdown trigger="click" @command="store.setTheme">
@@ -56,7 +57,7 @@
               </span>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="settings"><el-icon><Setting /></el-icon>系统设置</el-dropdown-item>
+                  <el-dropdown-item command="settings"><el-icon><Setting /></el-icon>{{ store.isAdmin ? '系统设置' : '个人设置' }}</el-dropdown-item>
                   <el-dropdown-item command="password"><el-icon><Lock /></el-icon>修改密码</el-dropdown-item>
                   <el-dropdown-item divided command="logout"><el-icon><SwitchButton /></el-icon>退出登录</el-dropdown-item>
                 </el-dropdown-menu>
@@ -64,7 +65,7 @@
             </el-dropdown>
           </template>
           <template v-else>
-            <el-button size="small" round @click="$router.push('/login')">管理员登录</el-button>
+            <el-button size="small" round @click="$router.push('/login')">登录</el-button>
           </template>
         </div>
       </el-header>
@@ -126,7 +127,7 @@ const menus = computed(() =>
     { path: '/records', title: '操作记录', icon: 'List', admin: true },
     { path: '/logs', title: '系统日志', icon: 'Document', admin: true },
     { path: '/settings', title: '系统设置', icon: 'Setting', admin: true }
-  ].filter(m => !m.admin || store.authed)
+  ].filter(m => !m.admin || store.isAdmin)
 )
 
 const avatarUrl = computed(() =>
@@ -141,7 +142,7 @@ async function onUserCommand(cmd) {
     await store.logout()
     router.push('/login')
   } else if (cmd === 'settings') {
-    router.push('/settings')
+    router.push(store.isAdmin ? '/settings' : { path: '/settings', query: { tab: 'security' } })
   } else if (cmd === 'password') {
     router.push({ path: '/settings', query: { tab: 'security' } })
   }

@@ -30,11 +30,20 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.0",
+        "date": "2026-09-27",
+        "items": [
+            "多用户系统：企业微信 OAuth 登录（PC 扫码 / 企微内免密），支持手动创建用户与角色管理",
+            "普通用户可申请图号，仅能修改、删除自己创建的数据；管理员拥有全部权限",
+            "访客模式升级三档：关闭 / 只读浏览 / 可添加",
+        ],
+    },
     {
         "version": "1.4.0",
         "date": "2026-09-26",
@@ -110,7 +119,7 @@ CHANGELOG = [
 
 DEFAULT_SETTINGS = {
     "site_org": "智能装备研究院",
-    "guest_mode": "0",
+    "guest_mode": "off",              # off 关闭 | readonly 只读浏览 | add 可添加
     "notify_enabled": "0",
     "notify_type": "robot",          # robot | wecom_app
     "notify_webhook": "",
@@ -268,6 +277,8 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             avatar TEXT DEFAULT '',
+            role TEXT DEFAULT 'user',
+            wecom_userid TEXT DEFAULT '',
             created_at TEXT
         );
         CREATE TABLE IF NOT EXISTS sessions(
@@ -325,11 +336,23 @@ def init_db():
         """)
         conn.commit()
 
+        # 迁移：多用户角色与企业微信账号列（存量用户此前均为管理员）
+        cols = {r["name"] for r in query("PRAGMA table_info(users)")}
+        if "role" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
+            conn.execute("UPDATE users SET role='admin'")
+        if "wecom_userid" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN wecom_userid TEXT DEFAULT ''")
+        # 迁移：访客模式三档（旧值 1 → add，0 → off）
+        conn.execute("UPDATE settings SET value='add' WHERE key='guest_mode' AND value='1'")
+        conn.execute("UPDATE settings SET value='off' WHERE key='guest_mode' AND value='0'")
+        conn.commit()
+
         # 种子：管理员
         if not query("SELECT id FROM users LIMIT 1", one=True):
             conn.execute(
-                "INSERT INTO users(username, password_hash, avatar, created_at) VALUES(?,?,?,?)",
-                ("admin", generate_password_hash("admin"), "", now_str()))
+                "INSERT INTO users(username, password_hash, avatar, role, created_at) VALUES(?,?,?,?,?)",
+                ("admin", generate_password_hash("admin"), "", "admin", now_str()))
             conn.commit()
 
         # 种子：三张内置表与字段

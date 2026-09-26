@@ -103,7 +103,8 @@ const ACTIONS = {
   table_create: '新建数据表', table_rename: '重命名数据表', table_delete: '删除数据表',
   field_add: '新增字段', field_update: '修改字段', field_delete: '删除字段',
   settings_update: '修改设置', ops_clear: '清空操作记录', logs_clear: '清空系统日志',
-  backup: '数据备份', backup_delete: '删除备份', backup_restore: '恢复备份'
+  backup: '数据备份', backup_delete: '删除备份', backup_restore: '恢复备份',
+  user_create: '新建用户', user_update: '用户管理', user_delete: '删除用户'
 }
 
 const q = reactive({ user: '', action: '', table_id: null, search: '' })

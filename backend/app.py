@@ -3,12 +3,16 @@
 import os
 import re
 import json
+import secrets
 import sqlite3
 import threading
+import time
 from datetime import datetime, timedelta
 from functools import wraps
+from urllib.parse import quote
 
-from flask import Flask, request, jsonify, send_from_directory, abort, g
+import requests
+from flask import Flask, request, jsonify, redirect, send_from_directory, abort, g
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -54,30 +58,43 @@ def create_app():
         if not token:
             return None
         row = D.query(
-            "SELECT u.id, u.username, u.avatar FROM sessions s "
-            "JOIN users u ON u.id = s.user_id WHERE s.token = ? "
-            "AND s.expires_at > ?", (token, D.now_str()), one=True)
+            "SELECT u.id, u.username, u.avatar, u.role, u.wecom_userid "
+            "FROM sessions s JOIN users u ON u.id = s.user_id "
+            "WHERE s.token = ? AND s.expires_at > ?", (token, D.now_str()), one=True)
         return row
 
     def is_admin():
         u = current_user()
-        return bool(u)
+        return bool(u) and u["role"] == "admin"
 
-    def guest_ok():
-        return D.get_setting("guest_mode") == "1"
+    def guest_mode():
+        """访客模式三档：off / readonly / add"""
+        v = D.get_setting("guest_mode")
+        return v if v in ("readonly", "add") else "off"
 
     def can_read():
-        return is_admin() or guest_ok()
+        return bool(current_user()) or guest_mode() != "off"
+
+    def can_add():
+        return bool(current_user()) or guest_mode() == "add"
 
     def req_user_name():
         u = current_user()
         return u["username"] if u else "访客"
 
+    def login_required(f):
+        @wraps(f)
+        def w(*a, **kw):
+            if not current_user():
+                return jsonify(ok=False, message="请先登录"), 401
+            return f(*a, **kw)
+        return w
+
     def admin_required(f):
         @wraps(f)
         def w(*a, **kw):
             if not is_admin():
-                return jsonify(ok=False, message="需要管理员登录"), 401
+                return jsonify(ok=False, message="需要管理员权限"), 401
             return f(*a, **kw)
         return w
 
@@ -91,8 +108,10 @@ def create_app():
 
     @app.before_request
     def _inject_g():
+        g.current_user = current_user
         g.is_admin = is_admin
         g.can_read = can_read
+        g.can_add = can_add
         g.req_user_name = req_user_name
 
     # ---------- 认证 ----------
@@ -109,7 +128,7 @@ def create_app():
         D.log_op(username, "login")
         return jsonify(ok=True, token=token, user={
             "username": user["username"], "avatar": user["avatar"],
-            "role": "admin"})
+            "role": user["role"] or "user"})
 
     @app.post("/api/auth/logout")
     def logout():
@@ -125,12 +144,21 @@ def create_app():
         settings = D.get_settings()
         names = D.site_names(settings["site_org"])
         u = current_user()
+        gm = settings["guest_mode"]
+        if gm not in ("readonly", "add"):
+            gm = "off"
+        # 企微 OAuth 是否已配置齐全（corpid + secret + agentid）
+        wecom = bool((settings.get("notify_corpid") or "").strip()
+                     and (settings.get("notify_secret") or "").strip()
+                     and (settings.get("notify_agentid") or "").strip())
         return jsonify(
             ok=True,
             authed=bool(u),
-            guest_mode=settings["guest_mode"] == "1",
-            user={"username": u["username"], "avatar": u["avatar"],
-                  "role": "admin"} if u else None,
+            guest_mode=gm,
+            wecom_login=wecom,
+            user={"id": u["id"], "username": u["username"],
+                  "avatar": u["avatar"], "role": u["role"] or "user",
+                  "wecom": bool(u["wecom_userid"])} if u else None,
             site={
                 "name": names["full"],
                 "subtitle": names["subtitle"],
@@ -141,8 +169,159 @@ def create_app():
                 "author": D.AUTHOR,
             })
 
-    @app.post("/api/auth/password")
+    # ---------- 企业微信 OAuth 登录 ----------
+    # state 短期缓存（单进程 waitress，进程内存即可）
+    _oauth_states = {}
+
+    @app.get("/api/auth/wecom/login")
+    def wecom_login():
+        s = D.get_settings()
+        corpid = (s.get("notify_corpid") or "").strip()
+        secret = (s.get("notify_secret") or "").strip()
+        agentid = (s.get("notify_agentid") or "").strip()
+        if not (corpid and secret and agentid):
+            return redirect("/login?wecom_err=" + quote("未配置企业微信应用，请先在系统设置-微信通知中填写"))
+        redirect_uri = request.host_url.rstrip("/") + "/api/auth/wecom/callback"
+        state = secrets.token_hex(8)
+        _oauth_states[state] = time.time()
+        ua = (request.headers.get("User-Agent") or "").lower()
+        if "wxwork" in ua:
+            # 企微客户端内：网页授权免密登录
+            url = ("https://open.weixin.qq.com/connect/oauth2/authorize"
+                   f"?appid={corpid}&redirect_uri={quote(redirect_uri, safe='')}"
+                   f"&response_type=code&scope=snsapi_base&agentid={agentid}"
+                   f"&state={state}#wechat_redirect")
+        else:
+            # PC 浏览器：企业微信扫码登录
+            url = ("https://login.work.weixin.qq.com/wwlogin/sso/login"
+                   f"?login_type=CorpApp&appid={corpid}&agentid={agentid}"
+                   f"&redirect_uri={quote(redirect_uri, safe='')}&state={state}")
+        return redirect(url)
+
+    @app.get("/api/auth/wecom/callback")
+    def wecom_callback():
+        code = request.args.get("code") or ""
+        state = request.args.get("state") or ""
+        ts = _oauth_states.pop(state, None)
+        if not code or ts is None or time.time() - ts > 600:
+            return redirect("/login?wecom_err=" + quote("登录会话已过期，请重新发起企业微信登录"))
+        s = D.get_settings()
+        corpid = (s.get("notify_corpid") or "").strip()
+        secret = (s.get("notify_secret") or "").strip()
+        try:
+            from .notify import _wecom_token
+            token = _wecom_token(corpid, secret)
+            r = requests.get("https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo",
+                             params={"access_token": token, "code": code}, timeout=8)
+            j = r.json()
+            userid = str(j.get("userid") or j.get("UserID") or "").strip()
+            if j.get("errcode") not in (0, None) or not userid:
+                raise RuntimeError(f"{j.get('errcode')}: {j.get('errmsg')}")
+        except Exception as e:
+            D.sys_log("ERROR", "AUTH", f"企业微信登录失败: {e}")
+            return redirect("/login?wecom_err=" + quote("企业微信登录失败，请稍后重试"))
+        # 查找用户：先按企微 ID，再按同名非管理员账号绑定，否则自动创建普通用户
+        user = D.query("SELECT * FROM users WHERE wecom_userid=?", (userid,), one=True)
+        if not user:
+            user = D.query(
+                "SELECT * FROM users WHERE username=? AND role<>'admin'", (userid,), one=True)
+            if user:
+                D.execute("UPDATE users SET wecom_userid=? WHERE id=?", (userid, user["id"]))
+            else:
+                uid = D.execute(
+                    "INSERT INTO users(username, password_hash, avatar, role, wecom_userid, created_at) "
+                    "VALUES(?,?,?,?,?,?)",
+                    (userid, generate_password_hash(secrets.token_hex(16)), "",
+                     "user", userid, D.now_str()))
+                user = D.query("SELECT * FROM users WHERE id=?", (uid,), one=True)
+                D.sys_log("INFO", "AUTH", f"企业微信登录自动创建用户: {userid}")
+        token = D.create_session(user["id"])
+        D.log_op(user["username"], "login", detail={"方式": "企业微信"})
+        return redirect("/?wecom_token=" + token)
+
+    # ---------- 用户管理 ----------
+    def _admin_count():
+        return D.query("SELECT COUNT(*) c FROM users WHERE role='admin'",
+                       one=True)["c"]
+
+    @app.get("/api/users")
     @admin_required
+    def list_users():
+        rows = D.query(
+            "SELECT id, username, avatar, role, wecom_userid, created_at "
+            "FROM users ORDER BY id")
+        return jsonify(ok=True, users=rows)
+
+    @app.post("/api/users")
+    @admin_required
+    def create_user():
+        body = request.get_json(force=True, silent=True) or {}
+        username = (body.get("username") or "").strip()
+        password = body.get("password") or ""
+        role = body.get("role") if body.get("role") in ("admin", "user") else "user"
+        if not username or len(username) > 40:
+            return jsonify(ok=False, message="请输入合法用户名（40 字以内）"), 400
+        if len(password) < 4:
+            return jsonify(ok=False, message="初始密码至少 4 位"), 400
+        if D.query("SELECT id FROM users WHERE username=?", (username,), one=True):
+            return jsonify(ok=False, message="用户名已存在"), 400
+        D.execute(
+            "INSERT INTO users(username, password_hash, avatar, role, created_at) VALUES(?,?,?,?,?)",
+            (username, generate_password_hash(password), "", role, D.now_str()))
+        D.log_op(current_user()["username"], "user_create", target=username,
+                 detail={"角色": role})
+        return jsonify(ok=True, message="用户已创建")
+
+    @app.put("/api/users/<int:uid>")
+    @admin_required
+    def update_user(uid):
+        me = current_user()
+        target = D.query("SELECT * FROM users WHERE id=?", (uid,), one=True)
+        if not target:
+            return jsonify(ok=False, message="用户不存在"), 404
+        body = request.get_json(force=True, silent=True) or {}
+        detail = {}
+        role = body.get("role")
+        if role is not None:
+            if role not in ("admin", "user"):
+                return jsonify(ok=False, message="角色不合法"), 400
+            if uid == me["id"] and role != "admin":
+                return jsonify(ok=False, message="不能取消自己的管理员角色"), 400
+            if target["role"] == "admin" and role == "user" and _admin_count() <= 1:
+                return jsonify(ok=False, message="系统至少保留一名管理员"), 400
+            D.execute("UPDATE users SET role=? WHERE id=?", (role, uid))
+            detail["角色"] = "管理员" if role == "admin" else "普通用户"
+        password = body.get("password")
+        if password:
+            if len(password) < 4:
+                return jsonify(ok=False, message="密码至少 4 位"), 400
+            D.execute("UPDATE users SET password_hash=? WHERE id=?",
+                      (generate_password_hash(password), uid))
+            detail["重置密码"] = "是"
+        if not detail:
+            return jsonify(ok=False, message="无变更"), 400
+        D.log_op(me["username"], "user_update", target=target["username"],
+                 detail=detail)
+        return jsonify(ok=True, message="已保存")
+
+    @app.delete("/api/users/<int:uid>")
+    @admin_required
+    def delete_user(uid):
+        me = current_user()
+        if uid == me["id"]:
+            return jsonify(ok=False, message="不能删除当前登录账号"), 400
+        target = D.query("SELECT * FROM users WHERE id=?", (uid,), one=True)
+        if not target:
+            return jsonify(ok=False, message="用户不存在"), 404
+        if target["role"] == "admin" and _admin_count() <= 1:
+            return jsonify(ok=False, message="系统至少保留一名管理员"), 400
+        D.execute("DELETE FROM users WHERE id=?", (uid,))
+        D.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
+        D.log_op(me["username"], "user_delete", target=target["username"])
+        return jsonify(ok=True, message="用户已删除")
+
+    @app.post("/api/auth/password")
+    @login_required
     def change_password():
         body = request.get_json(force=True, silent=True) or {}
         old, new, confirm = body.get("old"), body.get("new"), body.get("confirm")
@@ -157,11 +336,11 @@ def create_app():
         D.execute("UPDATE users SET password_hash=? WHERE id=?",
                   (generate_password_hash(new), u["id"]))
         D.log_op(u["username"], "password_change")
-        D.sys_log("INFO", "AUTH", "管理员修改了登录密码")
+        D.sys_log("INFO", "AUTH", f"用户 {u['username']} 修改了登录密码")
         return jsonify(ok=True, message="密码修改成功，请重新登录")
 
     @app.post("/api/auth/avatar")
-    @admin_required
+    @login_required
     def upload_avatar():
         f = request.files.get("file")
         if not f or not f.filename:
@@ -170,12 +349,13 @@ def create_app():
         if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
             return jsonify(ok=False, message="仅支持图片格式"), 400
         u = current_user()
-        name = f"admin_{int(datetime.now().timestamp())}{ext}"
+        name = f"u{u['id']}_{int(datetime.now().timestamp())}{ext}"
         os.makedirs(D.AVATAR_DIR, exist_ok=True)
         f.save(os.path.join(D.AVATAR_DIR, name))
-        # 清理旧头像
+        # 清理该用户旧头像
+        prefix = f"u{u['id']}_"
         for old in os.listdir(D.AVATAR_DIR):
-            if old.startswith("admin_") and old != name:
+            if old.startswith(prefix) and old != name:
                 try:
                     os.remove(os.path.join(D.AVATAR_DIR, old))
                 except OSError:
