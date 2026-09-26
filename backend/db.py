@@ -30,11 +30,18 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.3.2",
+        "date": "2026-09-26",
+        "items": [
+            "微信通知：操作人字段标签与其它字段对齐",
+        ],
+    },
     {
         "version": "1.3.1",
         "date": "2026-09-26",

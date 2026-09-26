@@ -217,7 +217,7 @@ def build_content(event, table, data, user):
             lines.append((label, data[key]))
     if data and data.get("apply_time"):
         lines.append(("时　间", data["apply_time"]))
-    lines.append(("操 作 人", user))
+    lines.append(("操作人", user))
     footer = f"{names['full']} · DrawCode"
     return title, lines, footer
 
