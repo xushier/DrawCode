@@ -819,6 +819,18 @@ onMounted(() => {
 @media (max-width: 768px) {
   .settings-page { overflow-y: auto; }
   .theme-grid { grid-template-columns: repeat(2, 1fr); }
-  .pane { width: 100%; min-width: 0; }
+  .pane { width: 100%; min-width: 0; max-width: none; }
+  /* 表单改纵向标签（标签置顶）：释放被固定 120/130px 标签列挤占的内容宽度，
+     使下拉/复选框/按钮等不再被压缩换行 */
+  .pane .set-form :deep(.el-form-item) { display: block; }
+  .pane .set-form :deep(.el-form-item__label) {
+    width: auto !important;
+    display: block;
+    text-align: left;
+    padding: 0;
+    margin-bottom: 6px;
+  }
+  .pane .set-form :deep(.el-form-item__content) { margin-left: 0 !important; }
+  .inline-row { flex-wrap: wrap; }
 }
 </style>

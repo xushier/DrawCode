@@ -159,8 +159,14 @@ html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none
 .dc-tabs .el-tabs__item.is-active {
   color: var(--dc-primary); font-weight: 600;
 }
-/* 移动端：横向滑动，间距保持一致 */
+/* 移动端：原生横向滑动。EP 检测溢出后会进入 scrollable 模式（transform 平移 + 左右箭头
+   + nav-wrap 加 20px 内边距），与原生滚动叠加会造成滑块错位、投影压到箭头，
+   故统一改用原生滚动：隐藏箭头、去掉预留内边距、禁用 EP 的 transform 平移 */
 @media (max-width: 768px) {
+  .dc-tabs .el-tabs__nav-wrap.is-scrollable { padding: 0; }
+  .dc-tabs .el-tabs__nav-prev,
+  .dc-tabs .el-tabs__nav-next { display: none; }
+  .dc-tabs .el-tabs__nav { transform: none !important; }
   .dc-tabs .el-tabs__nav-scroll { overflow-x: auto; scrollbar-width: none; }
   .dc-tabs .el-tabs__nav-scroll::-webkit-scrollbar { display: none; }
   .dc-tabs .el-tabs__item { flex: none; white-space: nowrap; }
@@ -184,6 +190,12 @@ html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none
 }
 .el-segmented--small .el-segmented__item-selected { border-radius: 7px; }
 .el-segmented__item.is-selected { font-weight: 600; }
+/* 移动端点按不出现文字选中/点按高亮的蓝色半透明块（EP tabs item 自带 user-select:none，segmented 缺失） */
+.el-segmented__item, .el-segmented__item-label {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
 
 /* 斑马纹交由组件 stripe，浅主题下再弱化一次 */
 html.dark .dc-table.el-table .el-table__tr.bg-row td.el-table__cell {
@@ -207,6 +219,24 @@ html.dark .dc-table.el-table .el-table__tr.bg-row td.el-table__cell {
   line-height: 30px;
   padding: 0 12px;
   margin: 1px 0;
+  transition: background-color .18s;
+}
+
+/* 下拉选择（el-select）：选项同样改为内缩圆角滑块（hover 浅灰、选中主色浅底，带过渡） */
+.el-select-dropdown__list { padding: 5px; }
+.el-select-dropdown__item {
+  margin: 1px 0;
+  border-radius: 8px;
+  transition: background-color .18s;
+}
+.el-select-dropdown__item.is-hovering,
+.el-select-dropdown__item:not(.is-disabled):hover {
+  background-color: var(--dc-bg-soft);
+}
+.el-select-dropdown__item.is-selected,
+.el-select-dropdown__item.is-selected.is-hovering,
+.el-select-dropdown__item.is-selected:not(.is-disabled):hover {
+  background-color: var(--dc-primary-soft);
 }
 
 /* ---------- 弹窗 ---------- */

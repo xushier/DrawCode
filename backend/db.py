@@ -30,11 +30,19 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.3.3"
+VERSION = "1.4.0"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.4.0",
+        "date": "2026-09-26",
+        "items": [
+            "移动端修复：tabs 滑动错位、分段控件点按闪现高亮、设置页表单挤压换行",
+            "下拉选择菜单选项改为内缩圆角滑块（hover / 选中带过渡动画）",
+        ],
+    },
     {
         "version": "1.3.3",
         "date": "2026-09-26",
