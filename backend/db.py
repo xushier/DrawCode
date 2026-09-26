@@ -30,11 +30,18 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.3.3",
+        "date": "2026-09-26",
+        "items": [
+            "页面 Logo 与浏览器图标（favicon）统一为同一图形",
+        ],
+    },
     {
         "version": "1.3.2",
         "date": "2026-09-26",
