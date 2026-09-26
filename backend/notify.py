@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """微信通知：企业微信群机器人 / 企业微信自建应用（文字 & 图文）"""
 import base64
+import colorsys
 import hashlib
 import io
 import json
@@ -21,16 +22,6 @@ LOGO_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ceec.png")
 _font_cache = {}
 _token_cache = {"token": None, "expires": 0}
-
-# 随机暖色渐变调色板（每次生成封面随机挑选一组：顶部色 -> 底部色）
-GRADIENTS = [
-    ((255, 146, 84), (250, 92, 52)),    # 橙 -> 橙红
-    ((255, 160, 70), (255, 100, 60)),   # 亮橙 -> 珊瑚橙
-    ((255, 120, 90), (240, 70, 90)),    # 珊瑚粉
-    ((255, 180, 60), (255, 110, 40)),   # 金橙 -> 橘红
-    ((250, 110, 100), (230, 60, 80)),   # 珊瑚红
-    ((255, 140, 100), (245, 80, 100)),  # 蜜桃 -> 西柚
-]
 
 
 # ---------------- 字体 ----------------
@@ -111,10 +102,36 @@ def _paste_logo(img):
     img.paste(logo, (COVER_W - w - 56, 38), logo)
 
 
+def _rand_gradient():
+    """随机生成一组渐变色（顶部色 -> 底部色）：色调全随机，
+    色相偏移限制在 ±80° 内保证过渡自然，饱和度/明度约束在鲜艳不脏的范围"""
+    def hsv(h, s, v):
+        return tuple(int(round(c * 255)) for c in colorsys.hsv_to_rgb(h, s, v))
+    h1 = random.random()
+    h2 = (h1 + random.uniform(-80, 80) / 360) % 1.0
+    s1, s2 = random.uniform(0.5, 1.0), random.uniform(0.5, 1.0)
+    v1 = random.uniform(0.5, 0.92)
+    v2 = min(0.95, max(0.4, v1 + random.uniform(-0.15, 0.15)))
+    return hsv(h1, s1, v1), hsv(h2, s2, v2)
+
+
+def _ink(top, bottom, y):
+    """按 y 处背景亮度自适应选择文字配色（浅底深字 / 深底浅字）"""
+    t = y / COVER_H
+    bg = tuple(int(a + (c - a) * t) for a, c in zip(top, bottom))
+    if 0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2] > 180:
+        # 浅色背景 -> 深色文字
+        return {"title": (43, 43, 48), "head": (110, 100, 92), "line": (72, 68, 66),
+                "label": (92, 82, 74), "value": (38, 38, 42), "time": (105, 95, 88)}
+    # 深色背景 -> 浅色文字
+    return {"title": (255, 255, 255), "head": (255, 226, 192), "line": (255, 236, 200),
+            "label": (255, 216, 168), "value": (255, 250, 244), "time": (255, 244, 236)}
+
+
 def make_cover(title, lines, footer_left):
-    """生成 1068x455 通知封面：随机暖色渐变 + 双栏数据 + 右上角 Logo"""
-    # 每次随机挑选一组鲜亮暖色渐变背景
-    top, bottom = random.choice(GRADIENTS)
+    """生成 1068x455 通知封面：全随机渐变 + 双栏数据 + 右上角 Logo"""
+    # 每次随机生成一组渐变背景（色调全随机）
+    top, bottom = _rand_gradient()
     grad = Image.new("RGB", (2, COVER_H))
     for y in range(COVER_H):
         t = y / COVER_H
@@ -127,13 +144,19 @@ def make_cover(title, lines, footer_left):
     f_big = _find_font(64)
     f_line = _find_font(40)
 
+    # 各区域文字颜色按所在背景亮度自适应（浅底深字 / 深底浅字）
+    ink_head = _ink(top, bottom, 56)
+    ink_title = _ink(top, bottom, 157)
+    inks = [_ink(top, bottom, 275), _ink(top, bottom, 355)]
+    ink_time = _ink(top, bottom, 415)
+
     # 顶部小字 + 装饰线
     draw.text((56, 40), _cut(draw, footer_left, f_small, 620),
-              font=f_small, fill=(255, 226, 192))
-    draw.line((56, 96, 192, 96), fill=(255, 236, 200), width=4)
+              font=f_small, fill=ink_head["head"])
+    draw.line((56, 96, 192, 96), fill=ink_head["line"], width=4)
 
     # 大标题
-    draw.text((56, 124), _cut(draw, title, f_big, 640), font=f_big, fill=(255, 255, 255))
+    draw.text((56, 124), _cut(draw, title, f_big, 640), font=f_big, fill=ink_title["title"])
 
     # 右上角 Logo
     _paste_logo(img)
@@ -145,17 +168,17 @@ def make_cover(title, lines, footer_left):
     cols = [(58, ["名　称", "图　号"], 330), (568, ["型　号", "申请人"], 290)]
     for cx, keys, vw in cols:
         y = 252
-        for k in keys:
+        for i, k in enumerate(keys):
             v = kv.get(k, "")
-            draw.text((cx, y), k, font=f_line, fill=(255, 216, 168))
+            draw.text((cx, y), k, font=f_line, fill=inks[i]["label"])
             draw.text((cx + 150, y), _cut(draw, v or "—", f_line, vw),
-                      font=f_line, fill=(255, 250, 244))
+                      font=f_line, fill=inks[i]["value"])
             y += 78
 
     # 右下角时间（右对齐）
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     draw.text((COVER_W - 56 - int(draw.textlength(ts, font=f_small)), COVER_H - 58),
-              ts, font=f_small, fill=(255, 208, 176))
+              ts, font=f_small, fill=ink_time["time"])
     return img
 
 

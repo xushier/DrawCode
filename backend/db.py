@@ -17,11 +17,18 @@ AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
 
 _write_lock = threading.Lock()
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.3.0",
+        "date": "2026-09-26",
+        "items": [
+            "通知封面：背景渐变色调全随机，文字颜色随背景亮度自适应",
+        ],
+    },
     {
         "version": "1.2.0",
         "date": "2026-09-26",
