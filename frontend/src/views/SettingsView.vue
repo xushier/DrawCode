@@ -111,6 +111,28 @@
                 <el-radio value="image_text">图文消息</el-radio>
               </el-radio-group>
             </el-form-item>
+            <el-form-item label="通知字体">
+              <div class="font-manage">
+                <div class="font-row">
+                  <el-select v-model="form.notify_font" :disabled="!notifyOn" style="width: 240px">
+                    <el-option label="系统默认字体" value="" />
+                    <el-option v-for="f in fonts" :key="f.name" :label="f.name" :value="f.name" />
+                  </el-select>
+                  <el-upload :show-file-list="false" :auto-upload="false" accept=".ttf,.otf,.ttc"
+                             :disabled="!notifyOn" :on-change="onFontUpload">
+                    <el-button :disabled="!notifyOn" :loading="fontUploading">上传字体</el-button>
+                  </el-upload>
+                </div>
+                <div v-if="fonts.length" class="font-list">
+                  <div v-for="f in fonts" :key="f.name" class="font-item">
+                    <span class="font-name" :title="f.name">{{ f.name }}</span>
+                    <span class="muted font-size">{{ fmtSize(f.size) }}</span>
+                    <el-button size="small" type="danger" text bg @click="delFont(f)">删除</el-button>
+                  </div>
+                </div>
+                <div class="field-hint muted">封面图使用的字体，可上传中文 TTF / OTF 字体，选择后点击「保存设置」生效</div>
+              </div>
+            </el-form-item>
             <el-form-item label="触发事件">
               <div class="inline-row">
                 <el-checkbox v-model="notifyAdd" :disabled="!notifyOn">新增图号时通知</el-checkbox>
@@ -442,10 +464,43 @@ async function saveNotify() {
       notify_webhook: form.notify_webhook, notify_corpid: form.notify_corpid,
       notify_secret: form.notify_secret, notify_agentid: form.notify_agentid,
       notify_touser: form.notify_touser, notify_style: form.notify_style,
+      notify_font: form.notify_font || '',
       notify_on_add: form.notify_on_add, notify_on_delete: form.notify_on_delete
     })
     ElMessage.success('通知设置已保存')
   } finally { saving.value = false }
+}
+
+/* ---------------- 通知字体 ---------------- */
+const fonts = ref([])
+const fontUploading = ref(false)
+
+async function loadFonts() {
+  const res = await http.get('/notify/fonts')
+  fonts.value = res.fonts || []
+}
+
+async function onFontUpload(file) {
+  const fd = new FormData()
+  fd.append('file', file.raw)
+  fontUploading.value = true
+  try {
+    const res = await http.post('/notify/fonts', fd)
+    ElMessage.success(`字体「${res.name}」已上传，已自动选中`)
+    form.notify_font = res.name
+    await loadFonts()
+  } finally { fontUploading.value = false }
+}
+
+async function delFont(f) {
+  try {
+    await ElMessageBox.confirm(`确定删除字体「${f.name}」吗？`, '删除字体',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  await http.delete(`/notify/fonts/${encodeURIComponent(f.name)}`)
+  if (form.notify_font === f.name) form.notify_font = ''
+  ElMessage.success('已删除')
+  await loadFonts()
 }
 
 async function testNotify() {
@@ -673,6 +728,7 @@ onMounted(() => {
   loadSettings()
   loadTables()
   loadBackups()
+  loadFonts()
 })
 </script>
 
@@ -693,6 +749,20 @@ onMounted(() => {
 .pane-backup { min-width: 700px; }
 .backup-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .backup-tip { margin-top: 12px; font-size: 12px; line-height: 1.6; }
+
+/* 通知字体管理 */
+.font-manage { width: 100%; max-width: 460px; }
+.font-row { display: flex; align-items: center; gap: 10px; }
+.font-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.font-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px; border: 1px solid var(--dc-border);
+  border-radius: 8px; font-size: 13px;
+}
+.font-item .font-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.font-item .font-size { font-size: 12px; flex: none; }
+.font-manage .field-hint { margin-top: 8px; }
+
 
 .pane-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
 .pane-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }

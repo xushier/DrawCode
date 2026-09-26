@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./backend/
 COPY main.py ./
+COPY ceec.png ./
 COPY --from=frontend /build/dist ./frontend/dist
 
 RUN mkdir -p /app/data

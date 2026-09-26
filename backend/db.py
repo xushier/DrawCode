@@ -17,11 +17,23 @@ AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
 
 _write_lock = threading.Lock()
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.1.0",
+        "date": "2026-09-26",
+        "items": [
+            "新增数据备份与恢复：每日自动备份、手动备份、下载、恢复，最多保留 10 份",
+            "仪表盘新增数据日历（农历 / 节假日 / 当日动态）与工程项目排行榜",
+            "操作记录与系统日志增加明细列展示，支持懒加载 / 分页切换",
+            "微信通知：可上传自定义字体与封面图，封面改为暖色双栏布局并显示机构 Logo",
+            "Docker 镜像支持 amd64 / arm64 双架构原生构建，标签含 latest 与版本号",
+            "移动端适配与界面细节全面优化",
+        ],
+    },
     {
         "version": "1.0.0",
         "date": "2026-09-24",
@@ -50,6 +62,7 @@ DEFAULT_SETTINGS = {
     "notify_agentid": "",
     "notify_touser": "@all",
     "notify_style": "text",          # text | image_text
+    "notify_font": "",               # 自定义字体文件名（空 = 系统默认）
     "notify_on_add": "1",
     "notify_on_delete": "1",
     "log_auto_clear": "1",

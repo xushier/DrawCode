@@ -3,16 +3,30 @@ name: Build Docker Image
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/drawcode
+
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
+  # 各架构用原生 runner 构建（公共仓库免费提供 arm64 runner），
+  # 避免 QEMU 模拟导致 arm64 构建极慢的问题
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,22 +41,42 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/drawcode
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=raw,value=latest
-
-      - name: Build and push
+      - name: Build and push by digest
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.platform }}
+          # 先按 digest 推送，merge 任务再统一打标签
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=build-${{ matrix.platform }}
+          cache-to: type=gha,scope=build-${{ matrix.platform }},mode=max
+
+  # 合并两个架构的镜像清单，打上 latest 与版本号两个标签
+  merge:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge multi-arch manifest (latest + version)
+        run: |
+          VER=$(grep -oP 'VERSION = "\K[^"]+' backend/db.py)
+          echo "版本号: $VER"
+          ARGS=""
+          for d in $(echo '${{ toJSON(needs.build) }}' | jq -r '.[].outputs.digest'); do
+            ARGS="$ARGS ${{ env.IMAGE }}@$d"
+          done
+          docker buildx imagetools create \
+            -t ${{ env.IMAGE }}:latest \
+            -t ${{ env.IMAGE }}:$VER \
+            $ARGS
+          docker buildx imagetools inspect ${{ env.IMAGE }}:$VER

@@ -401,6 +401,57 @@ def create_app():
         except Exception as e:
             return jsonify(ok=False, message=f"发送失败: {e}"), 200
 
+    # ---------- 通知字体（图文封面自定义字体） ----------
+    FONT_DIR = os.path.join(D.UPLOAD_DIR, "fonts")
+    FONT_EXTS = (".ttf", ".otf", ".ttc")
+
+    def _list_fonts():
+        os.makedirs(FONT_DIR, exist_ok=True)
+        items = []
+        for fn in os.listdir(FONT_DIR):
+            if os.path.splitext(fn)[1].lower() in FONT_EXTS:
+                items.append({"name": fn,
+                              "size": os.stat(os.path.join(FONT_DIR, fn)).st_size})
+        items.sort(key=lambda x: x["name"])
+        return items
+
+    @app.get("/api/notify/fonts")
+    @admin_required
+    def list_fonts():
+        return jsonify(ok=True, fonts=_list_fonts(),
+                       current=D.get_setting("notify_font"))
+
+    @app.post("/api/notify/fonts")
+    @admin_required
+    def upload_font():
+        f = request.files.get("file")
+        if not f or not f.filename:
+            return jsonify(ok=False, message="未选择文件"), 400
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext not in FONT_EXTS:
+            return jsonify(ok=False, message="仅支持 TTF / OTF / TTC 字体文件"), 400
+        # 仅取文件名防路径穿越（保留中文名，不用 secure_filename）
+        name = os.path.basename(f.filename)
+        os.makedirs(FONT_DIR, exist_ok=True)
+        f.save(os.path.join(FONT_DIR, name))
+        D.log_op(current_user()["username"], "font_upload", target=name)
+        D.sys_log("INFO", "NOTIFY", f"上传通知字体: {name}")
+        return jsonify(ok=True, name=name)
+
+    @app.delete("/api/notify/fonts/<name>")
+    @admin_required
+    def delete_font(name):
+        fn = os.path.basename(name)
+        p = os.path.join(FONT_DIR, fn)
+        if os.path.splitext(fn)[1].lower() not in FONT_EXTS or not os.path.isfile(p):
+            return jsonify(ok=False, message="字体不存在"), 404
+        os.remove(p)
+        if D.get_setting("notify_font") == fn:
+            D.set_setting("notify_font", "")
+        D.log_op(current_user()["username"], "font_delete", target=fn)
+        D.sys_log("INFO", "NOTIFY", f"删除通知字体: {fn}")
+        return jsonify(ok=True)
+
     # ---------- 上传文件与前端 ----------
     @app.get("/uploads/<path:p>")
     def uploads(p):

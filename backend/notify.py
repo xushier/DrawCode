@@ -15,6 +15,9 @@ from PIL import Image, ImageDraw, ImageFont
 from . import db as D
 
 COVER_W, COVER_H = 1068, 455
+# 机构 Logo（项目根目录 ceec.png，Dockerfile 会一并复制）
+LOGO_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ceec.png")
 _font_cache = {}
 _token_cache = {"token": None, "expires": 0}
 
@@ -22,6 +25,20 @@ _token_cache = {"token": None, "expires": 0}
 # ---------------- 字体 ----------------
 
 def _find_font(size):
+    # 优先使用设置中选定的自定义字体（data/uploads/fonts）
+    custom = (D.get_setting("notify_font") or "").strip()
+    if custom:
+        p = os.path.join(D.UPLOAD_DIR, "fonts", custom)
+        if os.path.isfile(p):
+            key = f"c:{custom}:{int(os.path.getmtime(p))}:{size}"
+            if key not in _font_cache:
+                try:
+                    _font_cache[key] = ImageFont.truetype(p, size)
+                except OSError:
+                    _font_cache[key] = None
+            if _font_cache[key]:
+                return _font_cache[key]
+    # 系统字体回退
     key = f"n{size}"
     if key in _font_cache:
         return _font_cache[key]
@@ -64,10 +81,29 @@ def _cut(draw, text, font, max_w):
     return text + "…"
 
 
+def _paste_logo(img):
+    """右上角贴机构 Logo（项目根目录 ceec.png），支持透明背景"""
+    if not os.path.isfile(LOGO_PATH):
+        return
+    try:
+        logo = Image.open(LOGO_PATH).convert("RGBA")
+    except Exception:
+        return
+    if logo.width < 10 or logo.height < 10:
+        return
+    # 等比缩放到高约 110px（过宽则限制宽度）
+    h = 110
+    w = int(logo.width * h / logo.height)
+    if w > 300:
+        w, h = 300, int(logo.height * w / logo.width)
+    logo = logo.resize((w, h), Image.LANCZOS)
+    img.paste(logo, (COVER_W - w - 56, 38), logo)
+
+
 def make_cover(title, lines, footer_left):
-    """生成 1068x455 通知封面"""
-    # 渐变背景
-    top, bottom = (18, 38, 63), (32, 68, 105)
+    """生成 1068x455 通知封面：暖色渐变 + 双栏数据 + 右上角 Logo"""
+    # 鲜亮暖色渐变背景（橙 -> 橙红）
+    top, bottom = (255, 146, 84), (250, 92, 52)
     grad = Image.new("RGB", (2, COVER_H))
     for y in range(COVER_H):
         t = y / COVER_H
@@ -76,44 +112,39 @@ def make_cover(title, lines, footer_left):
     img = grad.resize((COVER_W, COVER_H))
     draw = ImageDraw.Draw(img)
 
-    # 装饰圆环
-    accent = (94, 168, 220)
-    for r, w_ in ((320, 2), (250, 2)):
-        draw.ellipse((COVER_W - r - 40, COVER_H // 2 - r // 2,
-                      COVER_W - 40 + r, COVER_H // 2 + r // 2),
-                     outline=(255, 255, 255, 30), width=w_)
-    for r in (180, 120):
-        draw.ellipse((COVER_W - r, COVER_H - r, COVER_W, COVER_H),
-                     outline=accent, width=3)
-
     f_small = _find_font(22)
     f_big = _find_font(64)
     f_line = _find_font(30)
 
-    # 顶部小字
-    draw.text((56, 44), _cut(draw, footer_left, f_small, 700), font=f_small, fill=(160, 190, 215))
-    draw.line((56, 86, 160, 86), fill=accent, width=4)
+    # 顶部小字 + 装饰线
+    draw.text((56, 44), _cut(draw, footer_left, f_small, 620),
+              font=f_small, fill=(255, 226, 192))
+    draw.line((56, 86, 160, 86), fill=(255, 236, 200), width=4)
 
     # 大标题
-    draw.text((56, 118), _cut(draw, title, f_big, 760), font=f_big, fill=(255, 255, 255))
+    draw.text((56, 118), _cut(draw, title, f_big, 640), font=f_big, fill=(255, 255, 255))
 
-    # 键值行
-    y = 232
+    # 右上角 Logo
+    _paste_logo(img)
+
+    # 双栏键值：左列 名称 / 图号，右列 型号 / 申请人
+    kv = {}
     for k, v in lines:
-        if v in (None, "", []):
-            continue
-        v = "、".join(str(x) for x in v) if isinstance(v, list) else str(v)
-        draw.text((58, y), _cut(draw, k, f_line, 150), font=f_line, fill=(150, 180, 210))
-        draw.text((212, y), _cut(draw, v, f_line, 660), font=f_line, fill=(240, 246, 252))
-        y += 52
-        if y > COVER_H - 60:
-            break
+        kv[k] = "、".join(str(x) for x in v) if isinstance(v, list) else str(v or "")
+    cols = [(58, ["名　称", "图　号"]), (568, ["型　号", "申请人"])]
+    for cx, keys in cols:
+        y = 236
+        for k in keys:
+            v = kv.get(k, "")
+            draw.text((cx, y), k, font=f_line, fill=(255, 216, 168))
+            draw.text((cx + 118, y), _cut(draw, v or "—", f_line, 300),
+                      font=f_line, fill=(255, 250, 244))
+            y += 56
 
-    # 底部
-    draw.text((56, COVER_H - 48), "DrawCode",
-              font=f_small, fill=(120, 150, 180))
-    draw.text((COVER_W - 220, COVER_H - 48), datetime.now().strftime("%Y-%m-%d %H:%M"),
-              font=f_small, fill=(120, 150, 180))
+    # 右下角时间
+    draw.text((COVER_W - 224, COVER_H - 48),
+              datetime.now().strftime("%Y-%m-%d %H:%M"),
+              font=f_small, fill=(255, 208, 176))
     return img
 
 
