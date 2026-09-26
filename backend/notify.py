@@ -123,6 +123,21 @@ def cover_png_bytes(img):
     return bio.getvalue()
 
 
+def _cover_media(title, lines, footer):
+    """封面图来源：优先使用自定义文件 data/uploads/cover.png / cover.jpg，
+    不存在时按内容动态生成 1068x455。返回 (bytes, 文件名, mime)"""
+    for fn, mime in (("cover.png", "image/png"),
+                     ("cover.jpg", "image/jpeg"),
+                     ("cover.jpeg", "image/jpeg")):
+        p = os.path.join(D.UPLOAD_DIR, fn)
+        if os.path.isfile(p):
+            with open(p, "rb") as f:
+                data = f.read()
+            if data:
+                return data, fn, mime
+    return cover_png_bytes(make_cover(title, lines, footer)), "cover.png", "image/png"
+
+
 # ---------------- 消息构建 ----------------
 
 def build_content(event, table, data, user):
@@ -165,8 +180,7 @@ def _wecom_check(resp, tag):
 
 def _robot_send(webhook, style, title, lines, footer):
     if style == "image_text":
-        img = make_cover(title, lines, footer)
-        png = cover_png_bytes(img)
+        png, _, _ = _cover_media(title, lines, footer)
         if len(png) > 2 * 1024 * 1024:
             return "封面图超过机器人 2MB 限制"
         r = requests.post(webhook, json={
@@ -206,9 +220,8 @@ def _wecom_app_send(s, style, title, lines, footer):
             "text": {"content": content}}, timeout=10)
         return _wecom_check(r, "企业微信应用")
     # 图文：上传封面 → news
-    img = make_cover(title, lines, footer)
-    png = cover_png_bytes(img)
-    files = {"media": ("cover.png", png, image_png_mime())}
+    png, cover_name, cover_mime = _cover_media(title, lines, footer)
+    files = {"media": (cover_name, png, cover_mime)}
     r = requests.post(f"{base}/media/uploadimg?access_token={token}", files=files, timeout=15)
     j = r.json()
     if j.get("errcode") not in (0, None) and "url" not in j:
@@ -220,10 +233,6 @@ def _wecom_app_send(s, style, title, lines, footer):
             "title": title, "description": desc[:255],
             "url": D.GITHUB_URL, "picurl": j.get("url", "")}]}}, timeout=10)
     return _wecom_check(r, "企业微信应用")
-
-
-def image_png_mime():
-    return "image/png"
 
 
 def send_notification(event, table=None, data=None, user=""):

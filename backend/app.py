@@ -3,6 +3,7 @@
 import os
 import re
 import json
+import sqlite3
 import threading
 from datetime import datetime, timedelta
 from functools import wraps
@@ -429,6 +430,125 @@ def create_app():
         if full.startswith(FRONTEND_DIST) and os.path.isfile(full):
             return send_from_directory(FRONTEND_DIST, p)
         return send_index()
+
+    # ---------- 数据备份 ----------
+    BACKUP_DIR = os.path.join(D.DATA_DIR, "backups")
+    BACKUP_KEEP = 10
+
+    def _list_backups():
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        items = []
+        for fn in os.listdir(BACKUP_DIR):
+            if not (fn.startswith("drawcode-backup-") and fn.endswith(".db")):
+                continue
+            st = os.stat(os.path.join(BACKUP_DIR, fn))
+            items.append({
+                "name": fn, "size": st.st_size, "_ts": st.st_mtime,
+                "created_at": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S")})
+        items.sort(key=lambda x: x["_ts"], reverse=True)
+        return items
+
+    def _safe_backup_name(name):
+        fn = os.path.basename(str(name or ""))
+        if fn.startswith("drawcode-backup-") and fn.endswith(".db") \
+                and os.path.isfile(os.path.join(BACKUP_DIR, fn)):
+            return fn
+        return None
+
+    def _create_backup(reason="manual", user="系统"):
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        fname = "drawcode-backup-%s.db" % datetime.now().strftime("%Y%m%d-%H%M%S")
+        dest = os.path.join(BACKUP_DIR, fname)
+        src = sqlite3.connect(D.DB_PATH)
+        dst = sqlite3.connect(dest)
+        with dst:
+            src.backup(dst)
+        src.close()
+        dst.close()
+        # 最多保留 10 个，超出删除最旧
+        for old in _list_backups()[BACKUP_KEEP:]:
+            try:
+                os.remove(os.path.join(BACKUP_DIR, old["name"]))
+            except OSError:
+                pass
+        D.log_op(user, "backup", target=fname, detail={"原因": reason})
+        D.sys_log("INFO", "BACKUP", "数据备份完成：%s（%s）" % (fname, reason))
+        return fname
+
+    @app.get("/api/backups")
+    @admin_required
+    def list_backups():
+        items = [{k: v for k, v in it.items() if k != "_ts"} for it in _list_backups()]
+        return jsonify(ok=True, items=items, enabled=D.get_setting("backup_enabled") == "1")
+
+    @app.post("/api/backups")
+    @admin_required
+    def create_backup():
+        fname = _create_backup("manual", g.req_user_name())
+        return jsonify(ok=True, message="备份完成", name=fname)
+
+    @app.delete("/api/backups/<name>")
+    @admin_required
+    def delete_backup(name):
+        fn = _safe_backup_name(name)
+        if not fn:
+            return jsonify(ok=False, message="备份不存在"), 404
+        os.remove(os.path.join(BACKUP_DIR, fn))
+        D.log_op(g.req_user_name(), "backup_delete", target=fn)
+        D.sys_log("INFO", "BACKUP", "备份已删除：" + fn)
+        return jsonify(ok=True, message="已删除")
+
+    @app.get("/api/backups/<name>/download")
+    @admin_required
+    def download_backup(name):
+        fn = _safe_backup_name(name)
+        if not fn:
+            return jsonify(ok=False, message="备份不存在"), 404
+        return send_from_directory(BACKUP_DIR, fn, as_attachment=True, download_name=fn)
+
+    @app.post("/api/backups/restore")
+    @admin_required
+    def restore_backup():
+        body = request.get_json(force=True, silent=True) or {}
+        fn = _safe_backup_name(body.get("name"))
+        if not fn:
+            return jsonify(ok=False, message="备份不存在"), 404
+        # 记录当前有效会话，恢复后回填（若用户仍存在），避免操作者被立即登出
+        live = D.query("SELECT * FROM sessions WHERE expires_at > ?", (D.now_str(),))
+        src = sqlite3.connect(os.path.join(BACKUP_DIR, fn))
+        dst = sqlite3.connect(D.DB_PATH)
+        with dst:
+            src.backup(dst)
+        src.close()
+        dst.close()
+        try:
+            for s in live:
+                if D.query("SELECT id FROM users WHERE id=?", (s["user_id"],), one=True):
+                    D.execute(
+                        "INSERT OR IGNORE INTO sessions(token,user_id,created_at,expires_at) "
+                        "VALUES(?,?,?,?)",
+                        (s["token"], s["user_id"], s["created_at"], s["expires_at"]))
+        except Exception:
+            pass
+        D.log_op(g.req_user_name(), "backup_restore", target=fn)
+        D.sys_log("WARN", "BACKUP", "已从备份恢复数据：" + fn)
+        return jsonify(ok=True, message="恢复完成")
+
+    # 自动备份线程：每半小时检查一次，最新备份超过 24 小时且开关开启时自动备份
+    def _backup_worker():
+        import time
+        time.sleep(120)
+        while True:
+            try:
+                if D.get_setting("backup_enabled") == "1":
+                    items = _list_backups()
+                    if not items or (time.time() - items[0]["_ts"]) >= 24 * 3600:
+                        _create_backup("auto")
+            except Exception as e:
+                D.sys_log("ERROR", "BACKUP", "自动备份失败: %s" % e)
+            time.sleep(1800)
+
+    threading.Thread(target=_backup_worker, daemon=True).start()
 
     # ---------- 日志自动清理线程 ----------
     def _log_cleaner():

@@ -127,13 +127,14 @@ html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none
 .dc-tabs .el-tabs__nav {
   position: relative;
   display: flex;
-  padding: 5px 14px;          /* 水平 14px 与滑块 ±14px 投影对齐，避免首尾被裁切 */
+  padding: 5px;
   background: var(--dc-bg-soft);
   border-radius: 10px;
 }
 /* 复用 EP 自带 active-bar 作绝对定位滑块（自带 width/transform 过渡动画）。
    EP 计算滑块宽度时会减去 item 的左右内边距，导致滑块紧贴文字；
-   故用左右同色投影各外扩 14px，让白色滑块与文字保持内边距 */
+   故用左右同色投影外扩 18px（与 item 内边距一致），白色滑块恰好覆盖整个 tab 项盒子，
+   与深色长条四周间距统一为 5px */
 .dc-tabs .el-tabs__active-bar {
   display: block;
   top: 5px;
@@ -141,7 +142,7 @@ html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none
   height: calc(100% - 10px);
   border-radius: 8px;
   background: var(--dc-card);
-  box-shadow: -14px 0 0 var(--dc-card), 14px 0 0 var(--dc-card), var(--dc-shadow);
+  box-shadow: -18px 0 0 var(--dc-card), 18px 0 0 var(--dc-card), var(--dc-shadow);
 }
 .dc-tabs .el-tabs__item {
   position: relative; z-index: 2;

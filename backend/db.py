@@ -55,6 +55,7 @@ DEFAULT_SETTINGS = {
     "log_auto_clear": "1",
     "log_retention_days": "30",
     "table_vborder": "0",
+    "backup_enabled": "1",
 }
 
 SYSTEM_TABLES = [

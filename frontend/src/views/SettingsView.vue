@@ -195,6 +195,42 @@
         </div>
       </el-tab-pane>
 
+      <!-- 备份恢复 -->
+      <el-tab-pane label="备份恢复" name="backup">
+        <div class="pane pane-backup">
+          <div class="pane-head">
+            <div class="pane-title">备份与恢复</div>
+            <div class="backup-actions">
+              <el-switch v-model="autoBackup" active-text="每日自动备份" @change="onAutoBackup" />
+              <el-button type="primary" :icon="FolderAdd" :loading="backing" @click="doBackup">立即备份</el-button>
+            </div>
+          </div>
+          <el-table :data="backups" stripe size="small" class="dc-table" v-loading="backupsLoading">
+            <template #empty>
+              <el-empty description="暂无备份，点击「立即备份」创建" :image-size="64" />
+            </template>
+            <el-table-column prop="name" label="文件名" min-width="230" show-overflow-tooltip />
+            <el-table-column label="大小" width="90" align="center">
+              <template #default="{ row }">{{ fmtSize(row.size) }}</template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="备份时间" width="165" align="center" />
+            <el-table-column label="操作" width="196" align="center">
+              <template #default="{ row }">
+                <div class="op-btns">
+                  <el-button size="small" type="primary" text bg @click="downloadBk(row)">下载</el-button>
+                  <el-button size="small" text bg @click="restoreBk(row)">恢复</el-button>
+                  <el-button size="small" type="danger" text bg @click="deleteBk(row)">删除</el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="muted backup-tip">
+            备份包含全部图号数据与系统数据，保存在服务器数据目录 backups 下，最多保留 10 个。
+            恢复将用备份文件覆盖当前全部数据，请谨慎操作。
+          </div>
+        </div>
+      </el-tab-pane>
+
       <!-- 关于 -->
       <el-tab-pane label="关于" name="about">
         <div class="pane">
@@ -338,8 +374,8 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { http } from '@/api'
+import { Plus, FolderAdd } from '@element-plus/icons-vue'
+import { http, downloadBlob } from '@/api'
 import { useApp, THEMES } from '@/store'
 import Logo from '@/components/Logo.vue'
 
@@ -420,6 +456,67 @@ async function testNotify() {
     if (res.ok) ElMessage.success(res.message || '测试通知已发送')
     else ElMessage.error(res.message || '发送失败')
   } finally { testing.value = false }
+}
+
+/* ---------------- 备份与恢复 ---------------- */
+const backups = ref([])
+const backupsLoading = ref(false)
+const backing = ref(false)
+const autoBackup = ref(true)
+
+async function loadBackups() {
+  backupsLoading.value = true
+  try {
+    const res = await http.get('/backups')
+    backups.value = res.items || []
+    autoBackup.value = !!res.enabled
+  } finally { backupsLoading.value = false }
+}
+
+async function onAutoBackup(v) {
+  await http.put('/settings', { backup_enabled: v ? '1' : '0' })
+  ElMessage.success(v ? '已开启每日自动备份' : '已关闭自动备份')
+}
+
+async function doBackup() {
+  backing.value = true
+  try {
+    await http.post('/backups')
+    ElMessage.success('备份完成')
+    await loadBackups()
+  } finally { backing.value = false }
+}
+
+function fmtSize(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB'
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB'
+  return n + ' B'
+}
+
+async function downloadBk(row) {
+  const res = await http.get(`/backups/${row.name}/download`, { responseType: 'blob' })
+  downloadBlob(res, row.name)
+}
+
+async function restoreBk(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定用备份「${row.name}」覆盖当前全部数据吗？此操作不可撤销。`,
+      '恢复备份', { type: 'warning', confirmButtonText: '恢复', cancelButtonText: '取消' })
+  } catch { return }
+  const res = await http.post('/backups/restore', { name: row.name })
+  ElMessage.success(res.message || '恢复完成，即将刷新页面')
+  setTimeout(() => location.reload(), 900)
+}
+
+async function deleteBk(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除备份「${row.name}」吗？`, '删除备份',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  await http.delete(`/backups/${row.name}`)
+  ElMessage.success('已删除')
+  await loadBackups()
 }
 
 /* ---------------- 表管理 ---------------- */
@@ -575,6 +672,7 @@ onMounted(() => {
   if (route.query.tab) tab.value = String(route.query.tab)
   loadSettings()
   loadTables()
+  loadBackups()
 })
 </script>
 
@@ -591,6 +689,10 @@ onMounted(() => {
 }
 /* 表管理页保持通栏卡片 */
 .pane.pane-table { width: 100%; min-width: 0; max-width: none; }
+/* 备份页：表单头 + 表格 + 提示 */
+.pane-backup { min-width: 700px; }
+.backup-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.backup-tip { margin-top: 12px; font-size: 12px; line-height: 1.6; }
 
 .pane-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
 .pane-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
