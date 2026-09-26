@@ -15,7 +15,6 @@ export const useApp = defineStore('app', {
     ready: false,
     authed: false,
     guestMode: 'off',          // off | readonly | add
-    wecomLogin: false,          // 企微 OAuth 是否已配置
     user: null,
     site: {
       name: '智能图号系统', subtitle: '智能装备研究院图号系统', org: '智能装备研究院',
@@ -66,20 +65,10 @@ export const useApp = defineStore('app', {
     },
     async init(force) {
       if (this.ready && !force) return
-      // 消费企业微信 OAuth 回调（/?wecom_token=xxx），存入后清理地址栏
-      const qs = new URLSearchParams(location.search)
-      const wt = qs.get('wecom_token')
-      if (wt) {
-        localStorage.setItem('dc-token', wt)
-        qs.delete('wecom_token')
-        const rest = qs.toString()
-        history.replaceState({}, '', location.pathname + (rest ? '?' + rest : ''))
-      }
       try {
         const res = await http.get('/auth/status', { headers: { 'X-Silent': 1 } })
         this.authed = res.authed
         this.guestMode = res.guest_mode || 'off'
-        this.wecomLogin = !!res.wecom_login
         this.user = res.user
         if (res.site) this.site = res.site
       } catch (e) {

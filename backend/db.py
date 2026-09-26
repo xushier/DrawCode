@@ -30,11 +30,19 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.1",
+        "date": "2026-09-27",
+        "items": [
+            "移除企业微信 OAuth 登录（企微/微信/QQ 扫码登录的回调域名均需 ICP 备案）",
+            "保留多用户账号密码体系：用户管理、角色权限、访客模式三档",
+        ],
+    },
     {
         "version": "1.5.0",
         "date": "2026-09-27",
@@ -278,7 +286,6 @@ def init_db():
             password_hash TEXT NOT NULL,
             avatar TEXT DEFAULT '',
             role TEXT DEFAULT 'user',
-            wecom_userid TEXT DEFAULT '',
             created_at TEXT
         );
         CREATE TABLE IF NOT EXISTS sessions(
@@ -336,13 +343,11 @@ def init_db():
         """)
         conn.commit()
 
-        # 迁移：多用户角色与企业微信账号列（存量用户此前均为管理员）
+        # 迁移：多用户角色列（存量用户此前均为管理员）
         cols = {r["name"] for r in query("PRAGMA table_info(users)")}
         if "role" not in cols:
             conn.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
             conn.execute("UPDATE users SET role='admin'")
-        if "wecom_userid" not in cols:
-            conn.execute("ALTER TABLE users ADD COLUMN wecom_userid TEXT DEFAULT ''")
         # 迁移：访客模式三档（旧值 1 → add，0 → off）
         conn.execute("UPDATE settings SET value='add' WHERE key='guest_mode' AND value='1'")
         conn.execute("UPDATE settings SET value='off' WHERE key='guest_mode' AND value='0'")

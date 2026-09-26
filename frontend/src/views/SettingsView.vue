@@ -53,9 +53,6 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="登录方式" width="100" align="center">
-              <template #default="{ row }">{{ row.wecom_userid ? '企业微信' : '账号密码' }}</template>
-            </el-table-column>
             <el-table-column prop="created_at" label="创建时间" width="160" align="center" />
             <el-table-column label="操作" width="220" align="center">
               <template #default="{ row }">
@@ -72,8 +69,7 @@
             </el-table-column>
           </el-table>
           <div class="muted backup-tip">
-            普通用户登录后可申请图号，仅能修改、删除自己创建的数据；管理员拥有全部权限。
-            配置企业微信应用（企业 ID / 密钥 / AgentId）后，登录页将出现「企业微信登录」，首次登录自动创建用户。
+            普通用户登录后可申请图号，仅能修改、删除自己创建的数据；管理员拥有全部权限。可在「新建用户」中创建账号并分配角色。
           </div>
         </div>
       </el-tab-pane>
@@ -256,9 +252,6 @@
                          :on-change="onAvatarChange">
                 <el-button>更换头像</el-button>
               </el-upload>
-            </div>
-            <div v-if="store.user?.wecom" class="field-hint muted" style="margin-top: 14px">
-              当前账号通过企业微信登录；如需使用账号密码登录，请管理员在「用户管理」中重置密码。
             </div>
           </div>
         </div>

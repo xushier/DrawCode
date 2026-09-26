@@ -3,16 +3,13 @@
 import os
 import re
 import json
-import secrets
 import sqlite3
 import threading
 import time
 from datetime import datetime, timedelta
 from functools import wraps
-from urllib.parse import quote
 
-import requests
-from flask import Flask, request, jsonify, redirect, send_from_directory, abort, g
+from flask import Flask, request, jsonify, send_from_directory, abort, g
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -58,7 +55,7 @@ def create_app():
         if not token:
             return None
         row = D.query(
-            "SELECT u.id, u.username, u.avatar, u.role, u.wecom_userid "
+            "SELECT u.id, u.username, u.avatar, u.role "
             "FROM sessions s JOIN users u ON u.id = s.user_id "
             "WHERE s.token = ? AND s.expires_at > ?", (token, D.now_str()), one=True)
         return row
@@ -147,18 +144,12 @@ def create_app():
         gm = settings["guest_mode"]
         if gm not in ("readonly", "add"):
             gm = "off"
-        # 企微 OAuth 是否已配置齐全（corpid + secret + agentid）
-        wecom = bool((settings.get("notify_corpid") or "").strip()
-                     and (settings.get("notify_secret") or "").strip()
-                     and (settings.get("notify_agentid") or "").strip())
         return jsonify(
             ok=True,
             authed=bool(u),
             guest_mode=gm,
-            wecom_login=wecom,
             user={"id": u["id"], "username": u["username"],
-                  "avatar": u["avatar"], "role": u["role"] or "user",
-                  "wecom": bool(u["wecom_userid"])} if u else None,
+                  "avatar": u["avatar"], "role": u["role"] or "user"} if u else None,
             site={
                 "name": names["full"],
                 "subtitle": names["subtitle"],
@@ -169,76 +160,6 @@ def create_app():
                 "author": D.AUTHOR,
             })
 
-    # ---------- 企业微信 OAuth 登录 ----------
-    # state 短期缓存（单进程 waitress，进程内存即可）
-    _oauth_states = {}
-
-    @app.get("/api/auth/wecom/login")
-    def wecom_login():
-        s = D.get_settings()
-        corpid = (s.get("notify_corpid") or "").strip()
-        secret = (s.get("notify_secret") or "").strip()
-        agentid = (s.get("notify_agentid") or "").strip()
-        if not (corpid and secret and agentid):
-            return redirect("/login?wecom_err=" + quote("未配置企业微信应用，请先在系统设置-微信通知中填写"))
-        redirect_uri = request.host_url.rstrip("/") + "/api/auth/wecom/callback"
-        state = secrets.token_hex(8)
-        _oauth_states[state] = time.time()
-        ua = (request.headers.get("User-Agent") or "").lower()
-        if "wxwork" in ua:
-            # 企微客户端内：网页授权免密登录
-            url = ("https://open.weixin.qq.com/connect/oauth2/authorize"
-                   f"?appid={corpid}&redirect_uri={quote(redirect_uri, safe='')}"
-                   f"&response_type=code&scope=snsapi_base&agentid={agentid}"
-                   f"&state={state}#wechat_redirect")
-        else:
-            # PC 浏览器：企业微信扫码登录
-            url = ("https://login.work.weixin.qq.com/wwlogin/sso/login"
-                   f"?login_type=CorpApp&appid={corpid}&agentid={agentid}"
-                   f"&redirect_uri={quote(redirect_uri, safe='')}&state={state}")
-        return redirect(url)
-
-    @app.get("/api/auth/wecom/callback")
-    def wecom_callback():
-        code = request.args.get("code") or ""
-        state = request.args.get("state") or ""
-        ts = _oauth_states.pop(state, None)
-        if not code or ts is None or time.time() - ts > 600:
-            return redirect("/login?wecom_err=" + quote("登录会话已过期，请重新发起企业微信登录"))
-        s = D.get_settings()
-        corpid = (s.get("notify_corpid") or "").strip()
-        secret = (s.get("notify_secret") or "").strip()
-        try:
-            from .notify import _wecom_token
-            token = _wecom_token(corpid, secret)
-            r = requests.get("https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo",
-                             params={"access_token": token, "code": code}, timeout=8)
-            j = r.json()
-            userid = str(j.get("userid") or j.get("UserID") or "").strip()
-            if j.get("errcode") not in (0, None) or not userid:
-                raise RuntimeError(f"{j.get('errcode')}: {j.get('errmsg')}")
-        except Exception as e:
-            D.sys_log("ERROR", "AUTH", f"企业微信登录失败: {e}")
-            return redirect("/login?wecom_err=" + quote("企业微信登录失败，请稍后重试"))
-        # 查找用户：先按企微 ID，再按同名非管理员账号绑定，否则自动创建普通用户
-        user = D.query("SELECT * FROM users WHERE wecom_userid=?", (userid,), one=True)
-        if not user:
-            user = D.query(
-                "SELECT * FROM users WHERE username=? AND role<>'admin'", (userid,), one=True)
-            if user:
-                D.execute("UPDATE users SET wecom_userid=? WHERE id=?", (userid, user["id"]))
-            else:
-                uid = D.execute(
-                    "INSERT INTO users(username, password_hash, avatar, role, wecom_userid, created_at) "
-                    "VALUES(?,?,?,?,?,?)",
-                    (userid, generate_password_hash(secrets.token_hex(16)), "",
-                     "user", userid, D.now_str()))
-                user = D.query("SELECT * FROM users WHERE id=?", (uid,), one=True)
-                D.sys_log("INFO", "AUTH", f"企业微信登录自动创建用户: {userid}")
-        token = D.create_session(user["id"])
-        D.log_op(user["username"], "login", detail={"方式": "企业微信"})
-        return redirect("/?wecom_token=" + token)
-
     # ---------- 用户管理 ----------
     def _admin_count():
         return D.query("SELECT COUNT(*) c FROM users WHERE role='admin'",
@@ -248,7 +169,7 @@ def create_app():
     @admin_required
     def list_users():
         rows = D.query(
-            "SELECT id, username, avatar, role, wecom_userid, created_at "
+            "SELECT id, username, avatar, role, created_at "
             "FROM users ORDER BY id")
         return jsonify(ok=True, users=rows)
 

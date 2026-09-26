@@ -20,12 +20,6 @@
         <el-button type="primary" class="login-btn" size="large" :loading="loading"
                    @click="onLogin">登 录</el-button>
       </el-form>
-      <template v-if="store.wecomLogin">
-        <el-divider class="login-divider">或</el-divider>
-        <el-button size="large" class="login-btn wecom-btn" @click="wecomLogin">
-          <el-icon><ChatDotRound /></el-icon>企业微信登录
-        </el-button>
-      </template>
       <div class="login-foot muted">
         v{{ store.site.version }} · {{ store.site.author }}
       </div>
@@ -35,8 +29,8 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useApp } from '@/store'
 import Logo from '@/components/Logo.vue'
@@ -44,20 +38,9 @@ import AboutDialog from '@/components/AboutDialog.vue'
 
 const store = useApp()
 const router = useRouter()
-const route = useRoute()
 const loading = ref(false)
 const aboutOpen = ref(false)
 const form = reactive({ username: '', password: '' })
-
-// 企微 OAuth 回跳错误提示（/login?wecom_err=xxx）
-onMounted(() => {
-  const err = route.query.wecom_err
-  if (err) ElMessage.error(String(err))
-})
-
-function wecomLogin() {
-  window.location.href = '/api/auth/wecom/login'
-}
 
 async function onLogin() {
   if (!form.username || !form.password) {
@@ -102,10 +85,6 @@ async function onLogin() {
 .login-name { font-size: 20px; font-weight: 700; color: var(--dc-text); line-height: 1.3; }
 .login-sub { font-size: 13px; color: var(--dc-text-soft); margin-top: 3px; }
 .login-btn { width: 100%; margin-top: 4px; letter-spacing: 6px; }
-.login-divider { margin: 18px 0 14px; }
-.login-divider :deep(.el-divider__text) { font-size: 12px; color: var(--dc-text-soft); }
-.wecom-btn { letter-spacing: 2px; margin-top: 0; }
-.wecom-btn .el-icon { margin-right: 6px; }
 .login-foot { text-align: center; margin-top: 18px; font-size: 12px; }
 
 @media (max-width: 480px) {
