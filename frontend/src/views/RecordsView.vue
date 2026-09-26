@@ -53,19 +53,25 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="时间" width="165" />
-        <el-table-column prop="user" label="操作人" width="110" show-overflow-tooltip />
-        <el-table-column label="操作" width="110" align="center">
+        <el-table-column prop="created_at" label="时间" width="160" />
+        <el-table-column prop="user" label="操作人" width="100" show-overflow-tooltip />
+        <el-table-column label="操作" width="96" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="tagType(row.action)">{{ actionLabel(row.action) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="table_name" label="数据表" width="180" show-overflow-tooltip>
+        <el-table-column prop="table_name" label="数据表" width="150" show-overflow-tooltip>
           <template #default="{ row }">{{ row.table_name || '—' }}</template>
         </el-table-column>
-        <el-table-column label="对象" min-width="220" show-overflow-tooltip>
+        <el-table-column label="对象" min-width="130" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.target" class="row-target">{{ row.target }}</span>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="明细" min-width="240" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="summaryOf(row)" class="row-summary">{{ summaryOf(row) }}</span>
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
@@ -96,7 +102,8 @@ const ACTIONS = {
   import: '导入数据', export: '导出数据',
   table_create: '新建数据表', table_rename: '重命名数据表', table_delete: '删除数据表',
   field_add: '新增字段', field_update: '修改字段', field_delete: '删除字段',
-  settings_update: '修改设置', ops_clear: '清空操作记录', logs_clear: '清空系统日志'
+  settings_update: '修改设置', ops_clear: '清空操作记录', logs_clear: '清空系统日志',
+  backup: '数据备份', backup_delete: '删除备份', backup_restore: '恢复备份'
 }
 
 const q = reactive({ user: '', action: '', table_id: null, search: '' })
@@ -122,7 +129,8 @@ const hasMore = computed(() => items.value.length < total.value)
 
 const TAG_TYPES = {
   record_add: 'success', record_update: 'warning', record_delete: 'danger',
-  import: 'success', export: 'primary', login: 'info', logout: 'info'
+  import: 'success', export: 'primary', login: 'info', logout: 'info',
+  backup: 'primary', backup_restore: 'warning', backup_delete: 'danger'
 }
 
 function actionLabel(a) { return ACTIONS[a] || a }
@@ -168,6 +176,24 @@ function compactData(it) {
 function fmt(v) {
   if (Array.isArray(v)) return v.join('、') || '空'
   return String(v ?? '空') || '空'
+}
+
+/* 明细列单行摘要：修改展示「字段：旧 → 新」，新增/删除展示关键字段，其余展示键值 */
+function summaryOf(row) {
+  const d = detailOf(row)
+  if (!d) return ''
+  if (row.action === 'record_update' && d?.changes) {
+    return Object.entries(d.changes)
+      .map(([k, v]) => `${k}：${fmt(v[0])} → ${fmt(v[1])}`).join('；')
+  }
+  if (row.action === 'record_add' || row.action === 'record_delete') {
+    return Object.entries(compactData(row)).map(([k, v]) => `${k}：${v}`).join('；')
+  }
+  if (typeof d === 'object') {
+    return Object.entries(d)
+      .map(([k, v]) => `${detailLabel(k)}：${detailVal(v)}`).join('；')
+  }
+  return String(d)
 }
 
 async function load(append = false) {
@@ -272,6 +298,7 @@ onBeforeUnmount(() => scrollEl?.removeEventListener('scroll', onBodyScroll))
 .toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .row-target { font-weight: 600; color: var(--dc-primary); font-size: 13px; }
+.row-summary { color: var(--dc-text-soft); font-size: 12.5px; }
 .detail-wrap {
   padding: 2px 12px 10px;
   display: flex; flex-wrap: wrap; gap: 8px 20px;
@@ -284,6 +311,8 @@ onBeforeUnmount(() => scrollEl?.removeEventListener('scroll', onBodyScroll))
 
 @media (max-width: 768px) {
   .records-page { overflow-y: auto; }
-  .f-item, .f-item.range, .f-item.search { width: 100%; }
+  .filters { width: 100%; }
+  .f-item, .f-item.range, .f-item.search { width: 100%; min-width: 0; }
+  .toolbar-right { width: 100%; justify-content: space-between; }
 }
 </style>

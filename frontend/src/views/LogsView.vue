@@ -26,18 +26,30 @@
     <div class="card table-card" v-loading="loading">
       <el-table :data="items" stripe size="small" class="dc-table" height="100%">
         <template #empty><el-empty description="暂无日志" :image-size="72" /></template>
-        <el-table-column prop="level" label="级别" width="90" align="center">
+        <el-table-column type="expand" width="36">
+          <template #default="{ row }">
+            <pre v-if="row.detail" class="log-pre">{{ row.detail }}</pre>
+            <div v-else class="log-nodata muted">无详细数据</div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="level" label="级别" width="80" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.level === 'ERROR' ? 'danger' : row.level === 'WARN' ? 'warning' : 'info'">
               {{ row.level }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="module" label="模块" width="110" align="center">
+        <el-table-column prop="module" label="模块" width="100" align="center">
           <template #default="{ row }">{{ row.module }}</template>
         </el-table-column>
-        <el-table-column prop="message" label="内容" min-width="300" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="时间" width="170" align="center" />
+        <el-table-column prop="message" label="内容" min-width="220" show-overflow-tooltip />
+        <el-table-column label="明细" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="detailPreview(row)" class="row-detail">{{ detailPreview(row) }}</span>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="时间" width="165" align="center" />
       </el-table>
     </div>
 
@@ -60,6 +72,14 @@ import { Search, Delete } from '@element-plus/icons-vue'
 import { http } from '@/api'
 
 const q = reactive({ level: '', module: '', search: '' })
+
+/* 明细列预览：traceback 取末行（异常摘要），普通文本取首段，超长截断 */
+function detailPreview(row) {
+  if (!row.detail) return ''
+  const lines = String(row.detail).split('\n').map(s => s.trim()).filter(Boolean)
+  const last = lines[lines.length - 1] || ''
+  return last.length > 120 ? last.slice(0, 120) + '…' : last
+}
 const range = ref(null)
 const modules = ref([])
 const items = ref([])
@@ -172,10 +192,20 @@ onBeforeUnmount(() => scrollEl?.removeEventListener('scroll', onBodyScroll))
 .pagination-card { padding: 8px 12px; flex: none; display: flex; justify-content: flex-end; }
 .load-hint { text-align: center; font-size: 12px; padding: 6px 0 2px; flex: none; }
 .toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.row-detail { color: var(--dc-text-soft); font-size: 12.5px; }
+.log-pre {
+  margin: 0; padding: 6px 12px 10px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px; line-height: 1.7;
+  white-space: pre-wrap; word-break: break-all;
+  color: var(--dc-text-soft);
+}
+.log-nodata { padding: 4px 12px 8px; font-size: 12px; }
 
 @media (max-width: 768px) {
   .logs-page { overflow-y: auto; }
-  .f-item, .f-item.range, .f-item.search { width: 100%; }
+  .filters { width: 100%; }
+  .f-item, .f-item.range, .f-item.search { width: 100%; min-width: 0; }
   .toolbar-right { width: 100%; justify-content: space-between; }
 }
 </style>
