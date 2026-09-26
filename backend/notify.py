@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import random
 import threading
 import time
 from datetime import datetime
@@ -20,6 +21,16 @@ LOGO_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ceec.png")
 _font_cache = {}
 _token_cache = {"token": None, "expires": 0}
+
+# 随机暖色渐变调色板（每次生成封面随机挑选一组：顶部色 -> 底部色）
+GRADIENTS = [
+    ((255, 146, 84), (250, 92, 52)),    # 橙 -> 橙红
+    ((255, 160, 70), (255, 100, 60)),   # 亮橙 -> 珊瑚橙
+    ((255, 120, 90), (240, 70, 90)),    # 珊瑚粉
+    ((255, 180, 60), (255, 110, 40)),   # 金橙 -> 橘红
+    ((250, 110, 100), (230, 60, 80)),   # 珊瑚红
+    ((255, 140, 100), (245, 80, 100)),  # 蜜桃 -> 西柚
+]
 
 
 # ---------------- 字体 ----------------
@@ -101,9 +112,9 @@ def _paste_logo(img):
 
 
 def make_cover(title, lines, footer_left):
-    """生成 1068x455 通知封面：暖色渐变 + 双栏数据 + 右上角 Logo"""
-    # 鲜亮暖色渐变背景（橙 -> 橙红）
-    top, bottom = (255, 146, 84), (250, 92, 52)
+    """生成 1068x455 通知封面：随机暖色渐变 + 双栏数据 + 右上角 Logo"""
+    # 每次随机挑选一组鲜亮暖色渐变背景
+    top, bottom = random.choice(GRADIENTS)
     grad = Image.new("RGB", (2, COVER_H))
     for y in range(COVER_H):
         t = y / COVER_H
@@ -112,17 +123,17 @@ def make_cover(title, lines, footer_left):
     img = grad.resize((COVER_W, COVER_H))
     draw = ImageDraw.Draw(img)
 
-    f_small = _find_font(22)
+    f_small = _find_font(32)
     f_big = _find_font(64)
-    f_line = _find_font(30)
+    f_line = _find_font(40)
 
     # 顶部小字 + 装饰线
-    draw.text((56, 44), _cut(draw, footer_left, f_small, 620),
+    draw.text((56, 40), _cut(draw, footer_left, f_small, 620),
               font=f_small, fill=(255, 226, 192))
-    draw.line((56, 86, 160, 86), fill=(255, 236, 200), width=4)
+    draw.line((56, 96, 192, 96), fill=(255, 236, 200), width=4)
 
     # 大标题
-    draw.text((56, 118), _cut(draw, title, f_big, 640), font=f_big, fill=(255, 255, 255))
+    draw.text((56, 124), _cut(draw, title, f_big, 640), font=f_big, fill=(255, 255, 255))
 
     # 右上角 Logo
     _paste_logo(img)
@@ -131,20 +142,20 @@ def make_cover(title, lines, footer_left):
     kv = {}
     for k, v in lines:
         kv[k] = "、".join(str(x) for x in v) if isinstance(v, list) else str(v or "")
-    cols = [(58, ["名　称", "图　号"]), (568, ["型　号", "申请人"])]
-    for cx, keys in cols:
-        y = 236
+    cols = [(58, ["名　称", "图　号"], 330), (568, ["型　号", "申请人"], 290)]
+    for cx, keys, vw in cols:
+        y = 252
         for k in keys:
             v = kv.get(k, "")
             draw.text((cx, y), k, font=f_line, fill=(255, 216, 168))
-            draw.text((cx + 118, y), _cut(draw, v or "—", f_line, 300),
+            draw.text((cx + 150, y), _cut(draw, v or "—", f_line, vw),
                       font=f_line, fill=(255, 250, 244))
-            y += 56
+            y += 78
 
-    # 右下角时间
-    draw.text((COVER_W - 224, COVER_H - 48),
-              datetime.now().strftime("%Y-%m-%d %H:%M"),
-              font=f_small, fill=(255, 208, 176))
+    # 右下角时间（右对齐）
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    draw.text((COVER_W - 56 - int(draw.textlength(ts, font=f_small)), COVER_H - 58),
+              ts, font=f_small, fill=(255, 208, 176))
     return img
 
 
