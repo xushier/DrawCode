@@ -55,6 +55,10 @@
               <span>选择行</span>
               <el-segmented v-model="selMode" :options="selOptions" size="small" />
             </div>
+            <div class="pop-row">
+              <span>列宽</span>
+              <el-button size="small" :disabled="!hasSavedWidths" @click="resetColWidths">重置拖拽列宽</el-button>
+            </div>
           </div>
         </el-popover>
         <el-segmented v-model="mode" :options="modeOptions" size="default"
@@ -66,12 +70,13 @@
     <!-- 数据表 -->
     <div class="card table-card" v-loading="loading">
       <el-table ref="tableRef" :data="records" stripe size="small"
-                class="dc-table"
+                class="dc-table" border
                 height="100%" :row-key="r => r.id"
                 :highlight-current-row="selMode === 'single'"
                 :default-sort="{ prop: 'data.sn', order: 'descending' }"
                 @sort-change="onSortChange" @row-click="onRowClick"
-                @selection-change="onSelectionChange" v-el-scroll>
+                @selection-change="onSelectionChange"
+                @header-dragend="onHeaderDragend" v-el-scroll>
         <template #empty>
           <el-empty :description="search || filterCount ? '未找到匹配数据'
             : (store.canAdd ? '暂无数据，点击「申请图号」新增' : '暂无数据')"
@@ -87,8 +92,9 @@
         <el-table-column v-for="f in visibleFields" :key="f.key" :prop="'data.' + f.key"
                          :label="f.label" sortable="custom"
                          :align="f.key === 'sn' ? 'center' : 'left'"
-                         :width="f.key === 'sn' ? 72 : undefined"
-                         :min-width="colWidth(f)" show-overflow-tooltip>
+                         :width="f.key === 'sn' ? (savedWidths.sn || 72) : savedWidths[f.key]"
+                         :min-width="savedWidths[f.key] ? undefined : autoWidths[f.key]"
+                         show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="f.key === 'sn'" class="tabular">{{ row.data.sn }}</span>
             <template v-else-if="Array.isArray(row.data[f.key])">
@@ -256,6 +262,7 @@ async function onTableChange() {
   const t = activeTable.value
   fields.value = t ? t.fields : []
   initVisibleKeys()
+  initColWidths()
   await loadOptions()
   reload()
 }
@@ -490,11 +497,60 @@ watch(mode, v => localStorage.setItem('dc-view-mode', v))
 
 /* ---------------- 渲染辅助 ---------------- */
 
-function colWidth(f) {
-  return {
-    text: 150, textarea: 200, number: 120, select: 150, multi_select: 180,
-    radio: 150, checkbox: 180, switch: 90, date: 130, datetime: 175
-  }[f.type] || 150
+/* ---------------- 列宽：内容自动估宽 + 手动拖拽记忆 ---------------- */
+
+/* 文本宽度估算：中文约 13px/字，数字字母约 7.3px/字（13px 字号） */
+function textWidth(t) {
+  let w = 0
+  for (let i = 0; i < t.length; i++) {
+    w += t.charCodeAt(i) > 255 ? 13 : 7.3
+    if (w > 470) return w
+  }
+  return w
+}
+function cellWidth(f, v) {
+  if (v === null || v === undefined || v === '') return 0
+  if (Array.isArray(v)) {
+    // 多选标签：每个标签自带内边距、边框与间距
+    return v.reduce((s, x) => s + textWidth(String(x)) + 24, 0) + (v.length - 1) * 4
+  }
+  if (f.type === 'switch') return 44
+  return textWidth(String(v))
+}
+/* 按表头与已加载数据的实际内容估宽：窄数据列自动收窄、宽列有上限，
+   多余宽度仍按比例分给各列，尽量减少横向滚动条 */
+const autoWidths = computed(() => {
+  const map = {}
+  for (const f of visibleFields.value) {
+    let w = 0
+    for (const r of records.value) {
+      const cw = cellWidth(f, r.data[f.key])
+      if (cw > w) { w = cw; if (w > 470) break }
+    }
+    // 表头文字 + 排序箭头 + 单元格左右内边距与少量余量
+    const head = textWidth(f.label) + 24 + 26
+    map[f.key] = Math.round(Math.min(Math.max(w, head, 64), 470))
+  }
+  return map
+})
+
+/* 用户拖拽过的列宽按表记忆，未拖拽的列保持自动估宽 */
+const savedWidths = ref({})
+const hasSavedWidths = computed(() => Object.keys(savedWidths.value).length > 0)
+const colwKey = computed(() => `dc-colw-${activeId.value}`)
+function initColWidths() {
+  try { savedWidths.value = JSON.parse(localStorage.getItem(colwKey.value)) || {} }
+  catch { savedWidths.value = {} }
+}
+function onHeaderDragend(newWidth, oldWidth, column) {
+  const key = (column?.property || '').replace('data.', '')
+  if (!key) return
+  savedWidths.value[key] = Math.round(newWidth)
+  localStorage.setItem(colwKey.value, JSON.stringify(savedWidths.value))
+}
+function resetColWidths() {
+  savedWidths.value = {}
+  localStorage.removeItem(colwKey.value)
 }
 
 function fmtCell(v) {

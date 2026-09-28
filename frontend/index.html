@@ -9,9 +9,15 @@
       // 提前应用主题，避免闪烁；非法主题值回退到默认主题
       (function () {
         var t = localStorage.getItem('dc-theme')
-        if (['lan', 'cui', 'zi', 'jin', 'tao', 'yun'].indexOf(t) < 0) {
-          t = 'lan'
-          localStorage.setItem('dc-theme', 'lan')
+        // 一次性迁移：默认主题由「碧海听澜」改为「翠峦春晓」，
+        // 从未选择过主题（或停留在默认蓝）的用户自动切换；显式选过其他主题的不受影响
+        if (localStorage.getItem('dc-theme-def') !== 'cui') {
+          if (!t || t === 'lan') { t = 'cui'; localStorage.setItem('dc-theme', t) }
+          localStorage.setItem('dc-theme-def', 'cui')
+        }
+        if (['cui', 'lan', 'zi', 'jin', 'tao', 'yun'].indexOf(t) < 0) {
+          t = 'cui'
+          localStorage.setItem('dc-theme', t)
         }
         document.documentElement.dataset.theme = t
         if (localStorage.getItem('dc-dark') === '1') document.documentElement.classList.add('dark')

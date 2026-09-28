@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { http } from './api'
 
 export const THEMES = [
-  { id: 'lan', name: '碧海听澜', color: '#3a7bd5' },
   { id: 'cui', name: '翠峦春晓', color: '#3e8e68' },
+  { id: 'lan', name: '碧海听澜', color: '#3a7bd5' },
   { id: 'zi', name: '暮山凝紫', color: '#7b5fc9' },
   { id: 'jin', name: '落日熔金', color: '#d07e2d' },
   { id: 'tao', name: '桃夭灼灼', color: '#c9506e' },
@@ -21,9 +21,9 @@ export const useApp = defineStore('app', {
       name: '智能图号系统', subtitle: '智能装备研究院图号系统', org: '智能装备研究院',
       version: '', changelog: [], github: '', author: ''
     },
-    // 主题：本地记忆（非法值回退默认主题）
+    // 主题：本地记忆（非法值回退默认主题「翠峦春晓」）
     theme: THEMES.some(t => t.id === localStorage.getItem('dc-theme'))
-      ? localStorage.getItem('dc-theme') : 'lan',
+      ? localStorage.getItem('dc-theme') : 'cui',
     dark: localStorage.getItem('dc-dark') === '1',
     // 表格竖向边框：后端设置，全局生效
     vborder: false

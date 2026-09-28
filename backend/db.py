@@ -30,11 +30,20 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.4"
+VERSION = "1.5.5"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.5",
+        "date": "2026-09-28",
+        "items": [
+            "内置 Noto Sans SC 类苹方字体，全局 Medium 字重并加深文字，解决字体发细发浅发虚",
+            "默认主题改为「翠峦春晓」（已选过其他主题的保持不变）",
+            "表格列宽支持拖拽调整并按表记忆，窄数据列自动收窄，减少横向滚动条",
+        ],
+    },
     {
         "version": "1.5.4",
         "date": "2026-09-28",

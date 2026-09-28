@@ -1,10 +1,25 @@
-/* 全局样式：字体统一（苹方及类苹方）、对齐、统一圆角体系、紧凑表格、滚动 */
+/* 全局样式：字体统一（苹方及类苹方，内置 Noto Sans SC 保证各平台一致）、
+   对齐、统一圆角体系、紧凑表格、滚动 */
+
+/* ---------- 内置字体：Noto Sans SC 可变字体 ----------
+   已子集化到 GB2312 常用字（约 1.9MB，单文件覆盖 100-900 全字重）。
+   macOS 优先用系统苹方；Windows/Linux 无苹方时加载内置字体，
+   保证「类苹方」观感与真正的 Medium 字重，解决字体发细发虚 */
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("/fonts/NotoSansSC-VF.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* ---------- 设计令牌：统一圆角体系 ---------- */
 /* 层级：6px(标签/小件) → 8px(按钮/输入框) → 10px(卡片/表格/弹出层) → 14px(弹窗/抽屉) */
 :root {
-  --dc-font: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC",
-    "Noto Sans CJK SC", "Microsoft YaHei", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --dc-font: "PingFang SC", "Noto Sans SC", "HarmonyOS Sans SC", "MiSans",
+    "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", "Segoe UI",
+    "Helvetica Neue", Arial, sans-serif;
+  --el-font-family: var(--dc-font);
   --el-border-radius-base: 8px;
   --el-border-radius-small: 6px;
   --dc-radius: 10px;
@@ -20,11 +35,14 @@ html, body, #app {
 
 body {
   font-family: var(--dc-font);
-  font-weight: 400;
+  /* 全局 Medium 字重：配合内置 Noto Sans SC，解决字体过细发虚的问题 */
+  font-weight: 500;
   color: var(--dc-text);
   background: var(--dc-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* 系统字体缺少对应字重时不做伪粗体合成，避免发糊 */
+  font-synthesis: none;
 }
 
 /* 细滚动条 */
@@ -85,6 +103,16 @@ body {
 /* 竖向边框（列分隔线）：由系统设置「表格边框」开关控制，默认关闭 */
 html[data-vborder="1"] .dc-table .el-table__cell { border-right: 1px solid var(--dc-border); }
 html[data-vborder="1"] .dc-table .el-table__cell:last-child { border-right: none; }
+
+/* ---------- 拖拽列宽 ----------
+   EP 的列宽拖拽要求表格开启 border 模式；开启后这里把边框视觉全部隐藏，
+   保持与未开启时完全一致的外观（边框线透明且不吃宽度），仅保留拖拽能力 */
+.dc-table.el-table--border {
+  --el-table-border: 0px solid transparent;
+  --el-table-border-color: transparent;
+}
+/* 拖拽时跟随鼠标的竖线改用主题色，默认的边框色已被置透明 */
+.dc-table .el-table__column-resize-proxy { border-left: 1px solid var(--dc-primary); }
 /* 单选 / 多选列 */
 .dc-table .el-table__cell .el-radio { margin-right: 0; height: auto; }
 

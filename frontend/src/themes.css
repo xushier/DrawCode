@@ -14,10 +14,17 @@ html[data-theme] {
   --dc-header: color-mix(in srgb, var(--dc-primary) 6%, #ffffff);
   --dc-card: #ffffff;
   --dc-border: color-mix(in srgb, var(--dc-primary) 14%, #dfe4e9);
-  --dc-text: #23272e;
-  --dc-text-soft: #5a6470;
+  --dc-text: #1a1e25;
+  --dc-text-soft: #4c5561;
   --dc-primary-soft: color-mix(in srgb, var(--dc-primary) 12%, white);
   --dc-shadow: 0 1px 2px rgba(30, 40, 50, 0.03);
+  /* EP 组件正文/表格文字统一跟随主题文字色，整体加深，解决发浅发灰 */
+  --el-text-color-primary: var(--dc-text);
+  --el-text-color-regular: var(--dc-text);
+  --el-text-color-secondary: var(--dc-text-soft);
+  --el-text-color-placeholder: color-mix(in srgb, var(--dc-text-soft) 78%, transparent);
+  --el-table-text-color: var(--dc-text);
+  --el-table-header-text-color: var(--dc-text);
 }
 
 /* 暗色模式：同色系低亮度背景 */
@@ -36,10 +43,17 @@ html.dark[data-theme] {
   --dc-header: color-mix(in srgb, var(--dc-primary) 5%, #0e1013);
   --dc-card: color-mix(in srgb, var(--dc-primary) 6%, #13161a);
   --dc-border: color-mix(in srgb, var(--dc-primary) 16%, #20242a);
-  --dc-text: #d8dee6;
-  --dc-text-soft: #8b95a1;
+  --dc-text: #e2e8ef;
+  --dc-text-soft: #96a0ad;
   --dc-primary-soft: color-mix(in srgb, var(--dc-primary) 22%, #101215);
   --dc-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  /* 暗色模式下 EP 文字同样跟随主题变量，整体提亮 */
+  --el-text-color-primary: var(--dc-text);
+  --el-text-color-regular: var(--dc-text);
+  --el-text-color-secondary: var(--dc-text-soft);
+  --el-text-color-placeholder: color-mix(in srgb, var(--dc-text-soft) 72%, transparent);
+  --el-table-text-color: var(--dc-text);
+  --el-table-header-text-color: var(--dc-text);
 }
 
 /* 六种主题色 */
