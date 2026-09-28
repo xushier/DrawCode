@@ -1,10 +1,18 @@
-/* 全局样式：字体统一（苹方及类苹方，内置 Noto Sans SC 保证各平台一致）、
+/* 全局样式：字体统一（Geist + 苹方/类苹方，内置 Geist 与 Noto Sans SC 保证各平台一致）、
    对齐、统一圆角体系、紧凑表格、滚动 */
 
-/* ---------- 内置字体：Noto Sans SC 可变字体 ----------
-   已子集化到 GB2312 常用字（约 1.9MB，单文件覆盖 100-900 全字重）。
-   macOS 优先用系统苹方；Windows/Linux 无苹方时加载内置字体，
-   保证「类苹方」观感与真正的 Medium 字重，解决字体发细发虚 */
+/* ---------- 内置字体：Geist Variable（拉丁） + Noto Sans SC（中文） ----------
+   Geist：Vercel 出品的现代无衬线，覆盖数字/字母/常用符号（约 68KB，100-900 全字重），
+   图号、日期、序号等数字文本用它更利落；中文字形按顺序回退到苹方 / Noto。
+   Noto Sans SC 已子集化到 GB2312 常用字（约 1.9MB，单文件覆盖 100-900 全字重），
+   Windows/Linux 无苹方时加载，保证「类苹方」观感与真正的 Medium 字重 */
+@font-face {
+  font-family: "Geist Variable";
+  src: url("/fonts/Geist-VF.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 @font-face {
   font-family: "Noto Sans SC";
   src: url("/fonts/NotoSansSC-VF.woff2") format("woff2");
@@ -16,9 +24,9 @@
 /* ---------- 设计令牌：统一圆角体系 ---------- */
 /* 层级：6px(标签/小件) → 8px(按钮/输入框) → 10px(卡片/表格/弹出层) → 14px(弹窗/抽屉) */
 :root {
-  --dc-font: "PingFang SC", "Noto Sans SC", "HarmonyOS Sans SC", "MiSans",
-    "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", "Segoe UI",
-    "Helvetica Neue", Arial, sans-serif;
+  --dc-font: "Geist Variable", "PingFang SC", "Noto Sans SC", "HarmonyOS Sans SC",
+    "MiSans", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei",
+    "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --el-font-family: var(--dc-font);
   --el-border-radius-base: 8px;
   --el-border-radius-small: 6px;
@@ -265,6 +273,22 @@ html.dark .dc-table.el-table .el-table__tr.bg-row td.el-table__cell {
 .el-select-dropdown__item.is-selected.is-hovering,
 .el-select-dropdown__item.is-selected:not(.is-disabled):hover {
   background-color: var(--dc-primary-soft);
+}
+
+/* el-autocomplete 建议下拉：与 el-select 同款内缩圆角胶囊 */
+.el-autocomplete-suggestion__wrap { padding: 5px; }
+.el-autocomplete-suggestion li {
+  margin: 1px 0;
+  line-height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  transition: background-color .18s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.el-autocomplete-suggestion li:hover,
+.el-autocomplete-suggestion li.highlighted {
+  background-color: var(--dc-bg-soft);
 }
 
 /* ---------- 弹窗 ---------- */

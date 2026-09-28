@@ -30,11 +30,19 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.5"
+VERSION = "1.5.6"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.6",
+        "date": "2026-09-28",
+        "items": [
+            "内置 Geist 可变字体，数字/英文更利落，中文继续回退苹方/Noto",
+            "申请/编辑弹窗单选字段改为可续改输入：点击后原值保留可直接修改，输入时弹出建议",
+        ],
+    },
     {
         "version": "1.5.5",
         "date": "2026-09-28",

@@ -47,13 +47,11 @@
                           :model-value="store.user?.username" disabled>
                   <template #suffix><span class="muted">自动</span></template>
                 </el-input>
-                <!-- 申请人：访客新增 / 任意编辑 —— 下拉选择或自行输入（选项含全部账号） -->
-                <el-select v-else-if="f.key === 'applicant'"
-                           v-model="e[f.key]" filterable allow-create default-first-option
-                           :reserve-keyword="false"
-                           placeholder="可搜索选择，无则直接输入" clearable>
-                  <el-option v-for="o in applicantOptions(f.key)" :key="o" :label="o" :value="o" />
-                </el-select>
+                <!-- 申请人：访客新增 / 任意编辑 —— 可搜索选择或自行输入（选项含全部账号） -->
+                <el-autocomplete v-else-if="f.key === 'applicant'"
+                                 v-model="e[f.key]" :debounce="150"
+                                 :fetch-suggestions="(q, cb) => fetchSuggest(f.key, q, cb)"
+                                 placeholder="可搜索选择，无则直接输入" clearable />
                 <!-- 单选组 -->
                 <el-radio-group v-else-if="f.type === 'radio'" v-model="e[f.key]">
                   <el-radio v-for="o in opts(f.key)" :key="o" :value="o" border size="small">{{ o }}</el-radio>
@@ -67,12 +65,11 @@
                            placeholder="可搜索，无则直接输入新建" clearable>
                   <el-option v-for="o in opts(f.key)" :key="o" :label="o" :value="o" />
                 </el-select>
-                <!-- 可搜索下拉 -->
-                <el-select v-else-if="f.type === 'select'" v-model="e[f.key]"
-                           filterable allow-create default-first-option
-                           placeholder="可搜索，无则直接输入新建" clearable>
-                  <el-option v-for="o in opts(f.key)" :key="o" :label="o" :value="o" />
-                </el-select>
+                <!-- 可搜索输入：点击后原值保留可续改，输入时弹出建议 -->
+                <el-autocomplete v-else-if="f.type === 'select'" v-model="e[f.key]"
+                                 :debounce="150"
+                                 :fetch-suggestions="(q, cb) => fetchSuggest(f.key, q, cb)"
+                                 placeholder="可搜索，无则直接输入新建" clearable />
                 <!-- 数字 -->
                 <el-input-number v-else-if="f.type === 'number'" v-model="e[f.key]"
                                  :controls="false" class="w-full" placeholder="留空自动生成" />
@@ -165,6 +162,14 @@ const snDisplay = computed(() => {
 
 function opts(key) { return props.options[key] || [] }
 function isShowRequired(f) { return f.required && f.key !== 'sn' }
+
+// 单选字段建议：点击进入时原值保留可直接续改，输入时弹出过滤建议
+function fetchSuggest(key, q, cb) {
+  const list = key === 'applicant' ? applicantOptions(key) : opts(key)
+  const s = String(q ?? '').trim().toLowerCase()
+  const hit = s ? list.filter(o => String(o).toLowerCase().includes(s)) : list
+  cb(hit.slice(0, 50).map(v => ({ value: String(v) })))
+}
 
 function rules(f) {
   if (!f.required || f.key === 'sn') return []
