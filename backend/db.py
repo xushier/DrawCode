@@ -30,11 +30,19 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.3"
+VERSION = "1.5.4"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.4",
+        "date": "2026-09-28",
+        "items": [
+            "申请图号弹窗支持从 Excel 粘贴：复制一片区域粘贴即自动解析成多条",
+            "首行自动识别字段名（表头），也可无表头按字段顺序粘贴",
+        ],
+    },
     {
         "version": "1.5.3",
         "date": "2026-09-28",

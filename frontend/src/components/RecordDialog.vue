@@ -2,6 +2,23 @@
   <el-dialog v-model="show" :title="title" width="860px" top="8vh"
              append-to-body destroy-on-close :close-on-click-modal="false" @open="onOpen">
     <div ref="bodyRef" class="rec-body">
+      <div v-if="!isEdit" class="paste-bar">
+        <el-button link type="primary" size="small" @click="togglePaste">
+          {{ pasteOpen ? '收起粘贴' : '从 Excel 粘贴' }}
+        </el-button>
+        <span class="paste-tip">从 Excel 复制一片区域后粘贴，自动解析成多条</span>
+      </div>
+      <div v-if="pasteOpen" class="paste-panel">
+        <el-input ref="pasteAreaRef" v-model="pasteText" type="textarea" :rows="6"
+                  placeholder="每行一条记录，列之间用 Tab 分隔（从 Excel 直接复制即是此格式）&#10;首行可以是字段名（如：名称、图号、申请人），也可以不带头、直接按表字段顺序粘贴&#10;示例（无表头）：管接头→RBP-200-001→张三，箭头处实际为 Tab" />
+        <div class="paste-ops">
+          <span class="paste-tip">粘贴后点「解析为条目」，最多 {{ MAX_ENTRIES }} 条</span>
+          <div>
+            <el-button size="small" @click="pasteOpen = false">取 消</el-button>
+            <el-button type="primary" size="small" @click="parsePaste">解析为条目</el-button>
+          </div>
+        </div>
+      </div>
       <div v-for="(e, i) in entries" :key="e.__id" class="entry"
            :class="{ 'is-error': entryErrs[i] }">
         <div v-if="!isEdit && entries.length > 1" class="entry-head">
@@ -94,7 +111,7 @@
 
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { http } from '@/api'
 import { useApp } from '@/store'
 
@@ -180,11 +197,112 @@ function blankEntry() {
 
 function setFormRef(i, el) { if (el) formRefs.value[i] = el }
 
+// ---------------- Excel 粘贴解析 ----------------
+
+const pasteOpen = ref(false)
+const pasteText = ref('')
+const pasteAreaRef = ref()
+
+async function togglePaste() {
+  pasteOpen.value = !pasteOpen.value
+  if (pasteOpen.value) {
+    pasteText.value = ''
+    await nextTick()
+    pasteAreaRef.value?.focus()
+  }
+}
+
+// 单元格文本 → 字段值（按类型转换）
+function castVal(f, v) {
+  if (f.type === 'multi_select' || f.type === 'checkbox') {
+    return v.split(/[,，、;；]/).map(s => s.trim()).filter(Boolean)
+  }
+  if (f.type === 'switch') return /^(是|真|1|y|yes|true|√|开)$/i.test(v)
+  if (f.type === 'number') {
+    const n = parseFloat(v)
+    return Number.isNaN(n) ? null : n
+  }
+  if (f.type === 'date') {
+    const m = v.match(/^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$/)
+    if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+    return v
+  }
+  if (f.type === 'datetime') {
+    const m = v.match(/^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})(.*)$/)
+    if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}${m[4]}`
+    return v
+  }
+  return v
+}
+
+// 已有条目里是否有已填写内容（替换前确认用）
+function hasFilled() {
+  return entries.some(e => Object.keys(e).some(k => {
+    if (k === '__id') return false
+    const v = e[k]
+    if (typeof v === 'boolean') return v
+    if (Array.isArray(v)) return v.length > 0
+    return v !== null && v !== undefined && v !== ''
+  }))
+}
+
+async function parsePaste() {
+  const text = pasteText.value || ''
+  const rows = text.replace(/\r\n?/g, '\n').split('\n').filter(r => r.trim() !== '')
+  if (!rows.length) { ElMessage.warning('请先粘贴内容'); return }
+  // 可映射字段：跳过序号；登录用户的申请人锁定不可改
+  const mappable = fields.value.filter(f =>
+    f.key !== 'sn' && !(f.key === 'applicant' && !isEdit.value && store.authed))
+  const cells = rows.map(r => r.split('\t'))
+  // 表头识别：首行至少 2 列匹配字段名（label 或 key）则视为表头行
+  const head = cells[0].map(c => c.trim())
+  const hits = head.filter(h => mappable.some(f => h === f.label || h === f.key))
+  let map, dataRows
+  if (hits.length >= 2) {
+    map = head.map(h => mappable.find(f => h === f.label || h === f.key) || null)
+    dataRows = cells.slice(1)
+  } else {
+    map = mappable.slice()
+    dataRows = cells
+  }
+  if (entries.length > 1 || hasFilled()) {
+    try {
+      await ElMessageBox.confirm('解析将替换当前已填写的条目，是否继续？', '提示',
+                                 { type: 'warning', confirmButtonText: '替换', cancelButtonText: '取消' })
+    } catch { return }
+  }
+  const list = []
+  for (const row of dataRows) {
+    if (list.length >= MAX_ENTRIES) break
+    const e = blankEntry()
+    map.forEach((f, ci) => {
+      if (!f) return
+      const raw = (row[ci] ?? '').trim()
+      if (raw === '') return
+      e[f.key] = castVal(f, raw)
+    })
+    list.push(e)
+  }
+  if (!list.length) { ElMessage.warning('未解析到有效数据'); return }
+  entries.length = 0
+  entryErrs.value = list.map(() => '')
+  entries.push(...list)
+  formRefs.value = []
+  pasteOpen.value = false
+  pasteText.value = ''
+  ElMessage.success(`已解析 ${list.length} 条` +
+    (dataRows.length > list.length ? `（超出上限 ${MAX_ENTRIES} 条的部分已忽略）` : ''))
+  await nextTick()
+  bodyRef.value?.scrollTo({ top: bodyRef.value.scrollHeight })
+}
+
 function onOpen() {
   entries.length = 0
   entryErrs.value = []
   formRefs.value = []
   entries.push(blankEntry())
+  pasteOpen.value = false
+  pasteText.value = ''
   // 含申请人字段时加载账号用户名候选（每次打开刷新，注册新用户后立即可选）
   if (fields.value.some(f => f.key === 'applicant')) loadApplicants()
 }
@@ -294,6 +412,12 @@ async function onSubmit() {
 
 <style scoped>
 .rec-body { max-height: 60vh; overflow-y: auto; padding-right: 2px; }
+.paste-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.paste-tip { font-size: 12px; color: var(--el-text-color-secondary); }
+.paste-panel { background: var(--el-fill-color-lighter); border-radius: 10px;
+               padding: 12px; margin-bottom: 12px; }
+.paste-ops { display: flex; justify-content: space-between; align-items: center;
+             margin-top: 8px; }
 .entry { background: var(--el-fill-color-lighter); border: 1px solid transparent;
          border-radius: 10px; padding: 14px 14px 0; margin-bottom: 12px; }
 .entry.is-error { border-color: var(--el-color-danger-light-5);
