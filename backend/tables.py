@@ -474,6 +474,52 @@ def create_record(tid):
     return jsonify(ok=True, record=record_row(record))
 
 
+@tables_bp.post("/tables/<int:tid>/records/batch")
+def create_records_batch(tid):
+    """批量申请：逐条创建（成功的先入库），失败的返回原因由前端标红重交；
+    通知整批只发一条汇总"""
+    if not g.can_add():
+        return jsonify(ok=False, message="当前未开放申请权限，请先登录"), 401
+    table = get_table(tid)
+    if not table:
+        return jsonify(ok=False, message="表不存在"), 404
+    body = request.get_json(force=True, silent=True) or {}
+    items = body.get("items")
+    if not isinstance(items, list) or not items:
+        return jsonify(ok=False, message="没有可提交的数据"), 400
+    if len(items) > 20:
+        return jsonify(ok=False, message="单次最多批量申请 20 条"), 400
+    user = g.req_user_name()
+    u = g.current_user()
+    has_applicant = any(f["key"] == "applicant" for f in table["fields"])
+    results, added = [], []
+    for i, it in enumerate(items):
+        data = ((it or {}).get("data")) or {}
+        # 登录用户：申请人锁定为当前用户名；访客：保留下拉选择/自行输入的值
+        if u and has_applicant:
+            data["applicant"] = u["username"]
+        try:
+            record, err = do_create_record(table, data, user)
+        except Exception as e:  # 单条异常不中断整批
+            results.append({"index": i, "ok": False, "message": f"创建失败: {e}"})
+            continue
+        if err:
+            results.append({"index": i, "ok": False, "message": err})
+            continue
+        D.log_op(user, "record_add", tid, table["name"],
+                 target=str(record["data"].get("drawing_no") or record["data"].get("name") or ""),
+                 detail={"data": record["data"]})
+        added.append(record)
+        results.append({"index": i, "ok": True, "record": record_row(record)})
+    # 批量合并通知：至少 1 条成功才发，整批一条
+    if added and D.get_setting("notify_enabled") == "1" and D.get_setting("notify_on_add") == "1":
+        from .notify import send_batch_notification_async
+        send_batch_notification_async(table, added, user)
+    # 部分失败时 ok 仍为 true（由 partial 标记），避免前端拦截器全局弹错
+    return jsonify(ok=True, partial=len(added) < len(items),
+                   added=len(added), results=results)
+
+
 def _check_owner(rid):
     """登录用户可操作自己的记录，管理员可操作全部；返回 (user, record) 或错误响应"""
     u = g.current_user()

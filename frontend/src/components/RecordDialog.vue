@@ -1,79 +1,99 @@
 <template>
   <el-dialog v-model="show" :title="title" width="860px" top="8vh"
              append-to-body destroy-on-close :close-on-click-modal="false" @open="onOpen">
-    <el-form ref="formRef" :model="form" label-width="96px" label-position="left"
-             class="rec-form" @submit.prevent="onSubmit">
-      <el-row :gutter="16">
-        <el-col v-for="f in fields" :key="f.key" :xs="24" :sm="12">
-          <el-form-item :label="f.label" :prop="f.key"
-                        :rules="rules(f)" :required="isShowRequired(f)">
-            <!-- 序号：自动 -->
-            <el-input v-if="f.key === 'sn'" :model-value="snDisplay" disabled>
-              <template #suffix><span class="muted">自动</span></template>
-            </el-input>
-            <!-- 申请人：登录用户新增时锁定为当前用户名 -->
-            <el-input v-else-if="f.key === 'applicant' && !isEdit && store.authed"
-                      :model-value="store.user?.username" disabled>
-              <template #suffix><span class="muted">自动</span></template>
-            </el-input>
-            <!-- 申请人：访客新增 / 任意编辑 —— 下拉选择或自行输入（选项含全部账号） -->
-            <el-select v-else-if="f.key === 'applicant'"
-                       v-model="form[f.key]" filterable allow-create default-first-option
-                       :reserve-keyword="false"
-                       placeholder="可搜索选择，无则直接输入" clearable>
-              <el-option v-for="o in applicantOptions(f.key)" :key="o" :label="o" :value="o" />
-            </el-select>
-            <!-- 单选组 -->
-            <el-radio-group v-else-if="f.type === 'radio'" v-model="form[f.key]">
-              <el-radio v-for="o in opts(f.key)" :key="o" :value="o" border size="small">{{ o }}</el-radio>
-            </el-radio-group>
-            <!-- 开关 -->
-            <el-switch v-else-if="f.type === 'switch'" v-model="form[f.key]" />
-            <!-- 多选下拉（复选 / 多选） -->
-            <el-select v-else-if="f.type === 'multi_select' || f.type === 'checkbox'"
-                       v-model="form[f.key]" multiple filterable allow-create
-                       default-first-option :reserve-keyword="false"
-                       placeholder="可搜索，无则直接输入新建" clearable>
-              <el-option v-for="o in opts(f.key)" :key="o" :label="o" :value="o" />
-            </el-select>
-            <!-- 可搜索下拉 -->
-            <el-select v-else-if="f.type === 'select'" v-model="form[f.key]"
-                       filterable allow-create default-first-option
-                       placeholder="可搜索，无则直接输入新建" clearable>
-              <el-option v-for="o in opts(f.key)" :key="o" :label="o" :value="o" />
-            </el-select>
-            <!-- 数字 -->
-            <el-input-number v-else-if="f.type === 'number'" v-model="form[f.key]"
-                             :controls="false" class="w-full" placeholder="留空自动生成" />
-            <!-- 日期 -->
-            <el-date-picker v-else-if="f.type === 'date'" v-model="form[f.key]"
-                            type="date" value-format="YYYY-MM-DD" placeholder="选择日期"
-                            class="w-full" />
-            <!-- 日期时间 -->
-            <el-date-picker v-else-if="f.type === 'datetime'" v-model="form[f.key]"
-                            type="datetime" value-format="YYYY-MM-DD HH:mm:ss"
-                            placeholder="留空自动记录当前时间" class="w-full"
-                            :default-time="defaultTime" />
-            <!-- 多行文本 -->
-            <el-input v-else-if="f.type === 'textarea'" v-model="form[f.key]"
-                      type="textarea" :rows="2" placeholder="" />
-            <!-- 文本 -->
-            <el-input v-else v-model="form[f.key]" placeholder="" />
-          </el-form-item>
-        </el-col>
-      </el-row>
-    </el-form>
+    <div ref="bodyRef" class="rec-body">
+      <div v-for="(e, i) in entries" :key="e.__id" class="entry"
+           :class="{ 'is-error': entryErrs[i] }">
+        <div v-if="!isEdit && entries.length > 1" class="entry-head">
+          <span class="entry-no">第 {{ i + 1 }} 条</span>
+          <div>
+            <el-button v-if="i > 0" link type="primary" size="small" @click="copyPrev(i)">
+              同上一条
+            </el-button>
+            <el-button link type="danger" size="small" @click="removeEntry(i)">删除</el-button>
+          </div>
+        </div>
+        <el-alert v-if="entryErrs[i]" class="entry-err" type="error"
+                  :title="entryErrs[i]" :closable="false" show-icon />
+        <el-form :ref="el => setFormRef(i, el)" :model="e" label-width="96px" label-position="left"
+                 class="rec-form" @submit.prevent="onSubmit">
+          <el-row :gutter="16">
+            <el-col v-for="f in fields" :key="f.key" :xs="24" :sm="12">
+              <el-form-item :label="f.label" :prop="f.key"
+                            :rules="rules(f)" :required="isShowRequired(f)">
+                <!-- 序号：自动 -->
+                <el-input v-if="f.key === 'sn'" :model-value="snDisplay" disabled>
+                  <template #suffix><span class="muted">自动</span></template>
+                </el-input>
+                <!-- 申请人：登录用户新增时锁定为当前用户名 -->
+                <el-input v-else-if="f.key === 'applicant' && !isEdit && store.authed"
+                          :model-value="store.user?.username" disabled>
+                  <template #suffix><span class="muted">自动</span></template>
+                </el-input>
+                <!-- 申请人：访客新增 / 任意编辑 —— 下拉选择或自行输入（选项含全部账号） -->
+                <el-select v-else-if="f.key === 'applicant'"
+                           v-model="e[f.key]" filterable allow-create default-first-option
+                           :reserve-keyword="false"
+                           placeholder="可搜索选择，无则直接输入" clearable>
+                  <el-option v-for="o in applicantOptions(f.key)" :key="o" :label="o" :value="o" />
+                </el-select>
+                <!-- 单选组 -->
+                <el-radio-group v-else-if="f.type === 'radio'" v-model="e[f.key]">
+                  <el-radio v-for="o in opts(f.key)" :key="o" :value="o" border size="small">{{ o }}</el-radio>
+                </el-radio-group>
+                <!-- 开关 -->
+                <el-switch v-else-if="f.type === 'switch'" v-model="e[f.key]" />
+                <!-- 多选下拉（复选 / 多选） -->
+                <el-select v-else-if="f.type === 'multi_select' || f.type === 'checkbox'"
+                           v-model="e[f.key]" multiple filterable allow-create
+                           default-first-option :reserve-keyword="false"
+                           placeholder="可搜索，无则直接输入新建" clearable>
+                  <el-option v-for="o in opts(f.key)" :key="o" :label="o" :value="o" />
+                </el-select>
+                <!-- 可搜索下拉 -->
+                <el-select v-else-if="f.type === 'select'" v-model="e[f.key]"
+                           filterable allow-create default-first-option
+                           placeholder="可搜索，无则直接输入新建" clearable>
+                  <el-option v-for="o in opts(f.key)" :key="o" :label="o" :value="o" />
+                </el-select>
+                <!-- 数字 -->
+                <el-input-number v-else-if="f.type === 'number'" v-model="e[f.key]"
+                                 :controls="false" class="w-full" placeholder="留空自动生成" />
+                <!-- 日期 -->
+                <el-date-picker v-else-if="f.type === 'date'" v-model="e[f.key]"
+                                type="date" value-format="YYYY-MM-DD" placeholder="选择日期"
+                                class="w-full" />
+                <!-- 日期时间 -->
+                <el-date-picker v-else-if="f.type === 'datetime'" v-model="e[f.key]"
+                                type="datetime" value-format="YYYY-MM-DD HH:mm:ss"
+                                placeholder="留空自动记录当前时间" class="w-full"
+                                :default-time="defaultTime" />
+                <!-- 多行文本 -->
+                <el-input v-else-if="f.type === 'textarea'" v-model="e[f.key]"
+                          type="textarea" :rows="2" placeholder="" />
+                <!-- 文本 -->
+                <el-input v-else v-model="e[f.key]" placeholder="" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </el-form>
+      </div>
+      <el-button v-if="!isEdit" class="add-entry" :disabled="saving"
+                 @click="addEntry">
+        ＋ 再申请一条（{{ entries.length }}/{{ MAX_ENTRIES }}）
+      </el-button>
+    </div>
     <template #footer>
       <el-button @click="show = false">取 消</el-button>
       <el-button type="primary" :loading="saving" @click="onSubmit">
-        {{ isEdit ? '保存修改' : '提交申请' }}
+        {{ isEdit ? '保存修改' : entries.length > 1 ? `提交申请（${entries.length} 条）` : '提交申请' }}
       </el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { http } from '@/api'
 import { useApp } from '@/store'
@@ -97,8 +117,12 @@ const isEdit = computed(() => !!props.record)
 const title = computed(() =>
   `${isEdit.value ? '编辑记录' : '申请图号'} · ${props.table?.name || ''}`)
 
-const formRef = ref()
-const form = reactive({})
+const MAX_ENTRIES = 20
+let uid = 0
+const entries = reactive([])   // 批量条目（编辑模式仅 1 条）
+const entryErrs = ref([])      // 每条的服务端/自检错误信息
+const formRefs = ref([])       // 每条的 el-form 实例
+const bodyRef = ref()
 const saving = ref(false)
 
 const defaultTime = new Date(2000, 0, 1, 12, 0, 0)
@@ -138,45 +162,130 @@ function rules(f) {
   }]
 }
 
-function onOpen() {
-  Object.keys(form).forEach(k => delete form[k])
-  // 含申请人字段时加载账号用户名候选（每次打开刷新，注册新用户后立即可选）
-  if (fields.value.some(f => f.key === 'applicant')) loadApplicants()
+// ---------------- 批量条目管理 ----------------
+
+function blankEntry() {
+  const e = { __id: ++uid }
   for (const f of fields.value) {
-    let v = null
-    if (isEdit.value) {
-      v = props.record.data[f.key]
-    } else {
-      v = f.default_value ?? ''
-    }
     if (f.key === 'sn') continue
+    let v = isEdit.value ? props.record.data[f.key] : (f.default_value ?? '')
     if (f.type === 'multi_select' || f.type === 'checkbox') {
       v = Array.isArray(v) ? v : (v ? [v] : [])
     }
     if (f.type === 'switch') v = v === '1' || v === 1 || v === true
-    form[f.key] = v ?? (f.type === 'switch' ? false : null)
+    e[f.key] = v ?? (f.type === 'switch' ? false : null)
   }
+  return e
+}
+
+function setFormRef(i, el) { if (el) formRefs.value[i] = el }
+
+function onOpen() {
+  entries.length = 0
+  entryErrs.value = []
+  formRefs.value = []
+  entries.push(blankEntry())
+  // 含申请人字段时加载账号用户名候选（每次打开刷新，注册新用户后立即可选）
+  if (fields.value.some(f => f.key === 'applicant')) loadApplicants()
+}
+
+async function addEntry() {
+  if (entries.length >= MAX_ENTRIES) {
+    ElMessage.warning(`一次最多批量申请 ${MAX_ENTRIES} 条`)
+    return
+  }
+  entries.push(blankEntry())
+  entryErrs.value.push('')
+  await nextTick()
+  bodyRef.value?.scrollTo({ top: bodyRef.value.scrollHeight, behavior: 'smooth' })
+}
+
+function removeEntry(i) {
+  entries.splice(i, 1)
+  entryErrs.value.splice(i, 1)
+}
+
+function copyPrev(i) {
+  const src = entries[i - 1]
+  const dst = entries[i]
+  for (const f of fields.value) {
+    if (f.key === 'sn') continue
+    // 登录用户的申请人锁定为当前用户名，无需复制
+    if (f.key === 'applicant' && store.authed) continue
+    const v = src[f.key]
+    if (v === null || v === undefined || v === '') continue
+    if (Array.isArray(v) && !v.length) continue
+    dst[f.key] = Array.isArray(v) ? [...v] : v
+  }
+  entryErrs.value[i] = ''
+}
+
+// ---------------- 提交 ----------------
+
+function entryPayload(e) {
+  const data = {}
+  for (const f of fields.value) {
+    if (f.key === 'sn') continue
+    data[f.key] = e[f.key]
+  }
+  return data
 }
 
 async function onSubmit() {
-  try {
-    await formRef.value.validate()
-  } catch { return }
+  // 逐条表单校验
+  const forms = formRefs.value.slice(0, entries.length).filter(Boolean)
+  let invalid = false
+  for (const f of forms) {
+    try { await f.validate() } catch { invalid = true }
+  }
+  if (invalid) {
+    ElMessage.warning(isEdit.value ? '请填写必填项' : '仍有条目未通过校验，请检查标红字段')
+    return
+  }
   saving.value = true
   try {
-    const payload = { data: { ...form } }
     if (isEdit.value) {
-      const data = { ...props.record.data, ...form }
+      const data = { ...props.record.data, ...entryPayload(entries[0]) }
       delete data.sn
       await http.put(`/records/${props.record.id}`, { data })
       ElMessage.success('记录已更新')
-    } else {
-      delete payload.data.sn
-      await http.post(`/tables/${props.table.id}/records`, payload)
-      ElMessage.success('图号申请成功')
+      emit('saved')
+      show.value = false
+      return
     }
-    emit('saved')
-    show.value = false
+    // 批量内图号重复自检（提交前定位标红）
+    if (fields.value.some(f => f.key === 'drawing_no')) {
+      const seen = new Map()
+      const dup = new Set()
+      entries.forEach((e, i) => {
+        const n = String(e.drawing_no ?? '').trim()
+        if (!n) return
+        if (seen.has(n)) { dup.add(i); dup.add(seen.get(n)) }
+        else seen.set(n, i)
+      })
+      if (dup.size) {
+        dup.forEach(i => { entryErrs.value[i] = '该图号在本次批量中重复，请修改' })
+        ElMessage.error('批量内存在重复图号，请检查标红条目')
+        return
+      }
+    }
+    entryErrs.value = entries.map(() => '')
+    const items = entries.map(e => ({ data: entryPayload(e) }))
+    const res = await http.post(`/tables/${props.table.id}/records/batch`, { items })
+    const results = res.results || []
+    if (res.partial) {
+      // 成功的移除，失败的保留标红，改完可单独重交
+      results.forEach(r => { if (!r.ok) entryErrs.value[r.index] = r.message })
+      for (let i = results.length - 1; i >= 0; i--) {
+        if (results[i].ok) { entries.splice(i, 1); entryErrs.value.splice(i, 1) }
+      }
+      ElMessage.warning(`已成功 ${res.added} 条，失败 ${items.length - res.added} 条，请修改后重新提交`)
+      emit('saved')
+    } else {
+      ElMessage.success(`${res.added} 条图号申请成功`)
+      emit('saved')
+      show.value = false
+    }
   } finally {
     saving.value = false
   }
@@ -184,6 +293,17 @@ async function onSubmit() {
 </script>
 
 <style scoped>
+.rec-body { max-height: 60vh; overflow-y: auto; padding-right: 2px; }
+.entry { background: var(--el-fill-color-lighter); border: 1px solid transparent;
+         border-radius: 10px; padding: 14px 14px 0; margin-bottom: 12px; }
+.entry.is-error { border-color: var(--el-color-danger-light-5);
+                  background: var(--el-color-danger-light-9); }
+.entry-head { display: flex; align-items: center; justify-content: space-between;
+              margin-bottom: 10px; }
+.entry-no { font-size: 13px; font-weight: 600; color: var(--el-text-color-primary); }
+.entry-err { margin-bottom: 10px; }
+.add-entry { width: 100%; border-style: dashed; border-radius: 8px;
+             margin-bottom: 0; height: 36px; }
 .rec-form :deep(.el-form-item) { margin-bottom: 14px; }
 .rec-form :deep(.el-form-item__label) { font-size: 13px; }
 .w-full { width: 100%; }

@@ -127,8 +127,9 @@ def _ink(top, bottom, y):
             "label": (255, 216, 168), "value": (255, 250, 244), "time": (255, 244, 236)}
 
 
-def make_cover(title, lines, footer_left):
-    """生成 1068x455 通知封面：全随机渐变 + 双栏数据 + 右上角 Logo"""
+def make_cover(title, lines, footer, cols=None):
+    """生成 1068x455 通知封面：全随机渐变 + 双栏数据 + 右上角 Logo
+    cols 可自定义双栏键（默认 名称/图号 + 型号/申请人，批量通知传入聚合键）"""
     # 每次随机生成一组渐变背景（色调全随机）
     top, bottom = _rand_gradient()
     grad = Image.new("RGB", (2, COVER_H))
@@ -150,7 +151,7 @@ def make_cover(title, lines, footer_left):
     ink_time = _ink(top, bottom, 415)
 
     # 顶部小字 + 装饰线
-    draw.text((56, 40), _cut(draw, footer_left, f_small, 620),
+    draw.text((56, 40), _cut(draw, footer, f_small, 620),
               font=f_small, fill=ink_head["head"])
     draw.line((56, 96, 192, 96), fill=ink_head["line"], width=4)
 
@@ -160,11 +161,12 @@ def make_cover(title, lines, footer_left):
     # 右上角 Logo
     _paste_logo(img)
 
-    # 双栏键值：左列 名称 / 图号，右列 型号 / 申请人
+    # 双栏键值：左列 名称 / 图号，右列 型号 / 申请人（批量等场景可传入自定义键）
     kv = {}
     for k, v in lines:
         kv[k] = "、".join(str(x) for x in v) if isinstance(v, list) else str(v or "")
-    cols = [(58, ["名　称", "图　号"], 330), (568, ["型　号", "申请人"], 290)]
+    if cols is None:
+        cols = [(58, ["名　称", "图　号"], 330), (568, ["型　号", "申请人"], 290)]
     for cx, keys, vw in cols:
         y = 252
         for i, k in enumerate(keys):
@@ -187,9 +189,9 @@ def cover_png_bytes(img):
     return bio.getvalue()
 
 
-def _cover_media(title, lines, footer):
+def _cover_media(title, lines, footer, cols=None):
     """封面图来源：优先使用自定义文件 data/uploads/cover.png / cover.jpg，
-    不存在时按内容动态生成 1068x455。返回 (bytes, 文件名, mime)"""
+    不存在时按内容动态生成 1068×455。返回 (bytes, 文件名, mime)"""
     for fn, mime in (("cover.png", "image/png"),
                      ("cover.jpg", "image/jpeg"),
                      ("cover.jpeg", "image/jpeg")):
@@ -199,7 +201,7 @@ def _cover_media(title, lines, footer):
                 data = f.read()
             if data:
                 return data, fn, mime
-    return cover_png_bytes(make_cover(title, lines, footer)), "cover.png", "image/png"
+    return cover_png_bytes(make_cover(title, lines, footer, cols)), "cover.png", "image/png"
 
 
 # ---------------- 消息构建 ----------------
@@ -217,6 +219,36 @@ def build_content(event, table, data, user):
             lines.append((label, data[key]))
     if data and data.get("apply_time"):
         lines.append(("时　间", data["apply_time"]))
+    lines.append(("操作人", user))
+    footer = f"{names['full']} · DrawCode"
+    return title, lines, footer
+
+
+def build_batch_content(table, records, user):
+    """批量新增的汇总通知内容：一条通知覆盖整批（封面为聚合展示，不逐条刷屏）"""
+    s = D.get_settings()
+    names = D.site_names(s["site_org"])
+    title = f"批量新增 {len(records)} 条图号"
+    nos, applicants = [], []
+    for r in records:
+        d = r.get("data") or {}
+        n = str(d.get("drawing_no") or "").strip()
+        if n and n not in nos:
+            nos.append(n)
+        a = str(d.get("applicant") or "").strip()
+        if a and a not in applicants:
+            applicants.append(a)
+    lines = [("表　名", table["name"] if table else "—"),
+             ("条　数", f"{len(records)} 条")]
+    if nos:
+        shown = "、".join(nos[:8])
+        if len(nos) > 8:
+            shown += f" 等 {len(nos)} 条"
+        lines.append(("图　号", shown))
+    if applicants:
+        lines.append(("申请人", "、".join(applicants[:6]) +
+                      (" 等" if len(applicants) > 6 else "")))
+    lines.append(("时　间", (records[0].get("data") or {}).get("apply_time") or D.now_str()))
     lines.append(("操作人", user))
     footer = f"{names['full']} · DrawCode"
     return title, lines, footer
@@ -242,9 +274,9 @@ def _wecom_check(resp, tag):
     return None
 
 
-def _robot_send(webhook, style, title, lines, footer):
+def _robot_send(webhook, style, title, lines, footer, cols=None):
     if style == "image_text":
-        png, _, _ = _cover_media(title, lines, footer)
+        png, _, _ = _cover_media(title, lines, footer, cols)
         if len(png) > 2 * 1024 * 1024:
             return "封面图超过机器人 2MB 限制"
         r = requests.post(webhook, json={
@@ -272,7 +304,7 @@ def _wecom_token(corpid, secret):
     return j["access_token"]
 
 
-def _wecom_app_send(s, style, title, lines, footer):
+def _wecom_app_send(s, style, title, lines, footer, cols=None):
     token = _wecom_token(s["notify_corpid"], s["notify_secret"])
     touser = (s.get("notify_touser") or "").strip() or "@all"
     agentid = s["notify_agentid"].strip()
@@ -284,7 +316,7 @@ def _wecom_app_send(s, style, title, lines, footer):
             "text": {"content": content}}, timeout=10)
         return _wecom_check(r, "企业微信应用")
     # 图文：上传封面 → news
-    png, cover_name, cover_mime = _cover_media(title, lines, footer)
+    png, cover_name, cover_mime = _cover_media(title, lines, footer, cols)
     files = {"media": (cover_name, png, cover_mime)}
     r = requests.post(f"{base}/media/uploadimg?access_token={token}", files=files, timeout=15)
     j = r.json()
@@ -330,4 +362,42 @@ def send_notification_async(event, table=None, data=None, user=""):
             D.sys_log("INFO", "NOTIFY",
                       f"通知已发送: {event} " +
                       (f"图号 {data.get('drawing_no')}" if data else ""))
+    threading.Thread(target=run, daemon=True).start()
+
+
+# 批量通知封面双栏键：左列 条数/图号列表，右列 申请人/操作人
+BATCH_COVER_COLS = [(58, ["条　数", "图　号"], 330),
+                    (568, ["申请人", "操作人"], 290)]
+
+
+def send_batch_notification(table, records, user):
+    """批量新增汇总通知：整批只发一条（聚合展示，不逐条刷屏）"""
+    s = D.get_settings()
+    if s["notify_enabled"] != "1":
+        return "通知未启用"
+    title, lines, footer = build_batch_content(table, records, user)
+    try:
+        if s["notify_type"] == "robot":
+            webhook = (s.get("notify_webhook") or "").strip()
+            if not webhook:
+                return "未配置群机器人 Webhook 地址"
+            return _robot_send(webhook, s["notify_style"], title, lines, footer, BATCH_COVER_COLS)
+        corpid = (s.get("notify_corpid") or "").strip()
+        secret = (s.get("notify_secret") or "").strip()
+        agentid = (s.get("notify_agentid") or "").strip()
+        if not (corpid and secret and agentid):
+            return "企业微信应用参数不完整（需要企业ID / 密钥 / 应用AgentId）"
+        return _wecom_app_send(s, s["notify_style"], title, lines, footer, BATCH_COVER_COLS)
+    except Exception as e:
+        return f"发送异常: {e}"
+
+
+def send_batch_notification_async(table, records, user):
+    def run():
+        err = send_batch_notification(table, records, user)
+        if err:
+            D.sys_log("WARN", "NOTIFY", f"批量通知发送失败: {err}")
+        else:
+            D.sys_log("INFO", "NOTIFY",
+                      f"通知已发送: batch_add 共 {len(records)} 条")
     threading.Thread(target=run, daemon=True).start()

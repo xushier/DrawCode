@@ -30,11 +30,20 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.2"
+VERSION = "1.5.3"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.3",
+        "date": "2026-09-28",
+        "items": [
+            "申请图号弹窗支持批量：一次最多填写 20 条，可复制上一条、逐条删除",
+            "批量提交逐条入库，失败条目标红显示原因，修改后可单独重交",
+            "微信通知整批合并为一条汇总（新增 N 条 + 图号列表），不再逐条刷屏",
+        ],
+    },
     {
         "version": "1.5.2",
         "date": "2026-09-27",
