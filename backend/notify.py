@@ -114,10 +114,8 @@ def _rand_gradient():
     return hsv(h1, s1, v1), hsv(h2, s2, v2)
 
 
-def _ink(top, bottom, y):
-    """按 y 处背景亮度自适应选择文字配色（浅底深字 / 深底浅字）"""
-    t = y / COVER_H
-    bg = tuple(int(a + (c - a) * t) for a, c in zip(top, bottom))
+def _ink_of(bg):
+    """按背景色亮度自适应选择文字配色（浅底深字 / 深底浅字）"""
     if 0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2] > 180:
         # 浅色背景 -> 深色文字
         return {"title": (43, 43, 48), "head": (110, 100, 92), "line": (72, 68, 66),
@@ -127,17 +125,59 @@ def _ink(top, bottom, y):
             "label": (255, 216, 168), "value": (255, 250, 244), "time": (255, 244, 236)}
 
 
+def _ink(top, bottom, y):
+    """渐变背景：按 y 处插值色选择文字配色"""
+    t = y / COVER_H
+    bg = tuple(int(a + (c - a) * t) for a, c in zip(top, bottom))
+    return _ink_of(bg)
+
+
+def _row_ink(img, y):
+    """图片背景：按 y 行若干采样点的平均色选择文字配色"""
+    w, h = img.size
+    y = min(max(y, 0), h - 1)
+    px = img.load()
+    xs = [int(w * f) for f in (0.06, 0.3, 0.5, 0.7, 0.94)]
+    bg = tuple(sum(px[x, y][c] for x in xs) // len(xs) for c in range(3))
+    return _ink_of(bg)
+
+
+def _bg_file():
+    """自定义封面背景 data/uploads/background.png / .jpg / .jpeg（无则返回 None）"""
+    for fn in ("background.png", "background.jpg", "background.jpeg"):
+        p = os.path.join(D.UPLOAD_DIR, fn)
+        if os.path.isfile(p) and os.path.getsize(p) > 0:
+            return p
+    return None
+
+
 def make_cover(title, lines, footer, cols=None):
-    """生成 1068x455 通知封面：全随机渐变 + 双栏数据 + 右上角 Logo
+    """生成 1068x455 通知封面：自定义背景图 / 全随机渐变 + 双栏数据 + 右上角 Logo
     cols 可自定义双栏键（默认 名称/图号 + 型号/申请人，批量通知传入聚合键）"""
-    # 每次随机生成一组渐变背景（色调全随机）
-    top, bottom = _rand_gradient()
-    grad = Image.new("RGB", (2, COVER_H))
-    for y in range(COVER_H):
-        t = y / COVER_H
-        grad.putpixel((0, y), tuple(int(a + (b - a) * t) for a, b in zip(top, bottom)))
-        grad.putpixel((1, y), tuple(int(a + (b - a) * t) for a, b in zip(top, bottom)))
-    img = grad.resize((COVER_W, COVER_H))
+    # 背景来源：优先自定义背景图（background.png，非 1068x455 时缩放到该尺寸），
+    # 不可用时每次随机生成一组渐变背景（色调全随机）
+    img = None
+    bg_path = _bg_file()
+    if bg_path:
+        try:
+            im = Image.open(bg_path).convert("RGB")
+            if im.size != (COVER_W, COVER_H):
+                im = im.resize((COVER_W, COVER_H), Image.LANCZOS)
+            img = im
+        except Exception:
+            img = None
+    if img is not None:
+        # 文字颜色按背景图各行实际亮度自适应
+        pick = lambda y: _row_ink(img, y)
+    else:
+        top, bottom = _rand_gradient()
+        grad = Image.new("RGB", (2, COVER_H))
+        for y in range(COVER_H):
+            t = y / COVER_H
+            grad.putpixel((0, y), tuple(int(a + (b - a) * t) for a, b in zip(top, bottom)))
+            grad.putpixel((1, y), tuple(int(a + (b - a) * t) for a, b in zip(top, bottom)))
+        img = grad.resize((COVER_W, COVER_H))
+        pick = lambda y: _ink(top, bottom, y)
     draw = ImageDraw.Draw(img)
 
     f_small = _find_font(32)
@@ -145,10 +185,10 @@ def make_cover(title, lines, footer, cols=None):
     f_line = _find_font(40)
 
     # 各区域文字颜色按所在背景亮度自适应（浅底深字 / 深底浅字）
-    ink_head = _ink(top, bottom, 56)
-    ink_title = _ink(top, bottom, 157)
-    inks = [_ink(top, bottom, 275), _ink(top, bottom, 355)]
-    ink_time = _ink(top, bottom, 415)
+    ink_head = pick(56)
+    ink_title = pick(157)
+    inks = [pick(275), pick(355)]
+    ink_time = pick(415)
 
     # 顶部小字 + 装饰线
     draw.text((56, 40), _cut(draw, footer, f_small, 620),
@@ -191,7 +231,8 @@ def cover_png_bytes(img):
 
 def _cover_media(title, lines, footer, cols=None):
     """封面图来源：优先使用自定义文件 data/uploads/cover.png / cover.jpg，
-    不存在时按内容动态生成 1068×455。返回 (bytes, 文件名, mime)"""
+    无 cover 时若存在 background.png 则以其为背景动态生成 1068×455，
+    都不存在时用随机渐变背景动态生成。返回 (bytes, 文件名, mime)"""
     for fn, mime in (("cover.png", "image/png"),
                      ("cover.jpg", "image/jpeg"),
                      ("cover.jpeg", "image/jpeg")):

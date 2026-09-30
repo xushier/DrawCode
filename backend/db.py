@@ -30,11 +30,18 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.6"
+VERSION = "1.5.7"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.7",
+        "date": "2026-09-29",
+        "items": [
+            "微信通知封面新增背景图模式：无 cover.png 时可用 background.png 作为背景生成封面，文字颜色随背景亮度自适应",
+        ],
+    },
     {
         "version": "1.5.6",
         "date": "2026-09-28",
