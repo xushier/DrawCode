@@ -19,13 +19,18 @@
       </div>
       <div class="toolbar-right">
         <el-segmented v-model="mode" :options="modeOptions" size="default" @change="reload" />
+        <el-button v-if="sel.length" type="danger" plain :icon="Delete" @click="delSel">
+          删除选中（{{ sel.length }}）
+        </el-button>
         <el-button type="danger" plain :icon="Delete" @click="clearAll">清空日志</el-button>
       </div>
     </div>
 
     <div class="card table-card" v-loading="loading">
-      <el-table :data="items" stripe size="small" class="dc-table" height="100%">
+      <el-table :data="items" stripe size="small" class="dc-table" height="100%"
+                @selection-change="s => (sel = s)">
         <template #empty><el-empty description="暂无日志" :image-size="72" /></template>
+        <el-table-column type="selection" width="42" />
         <el-table-column type="expand" width="36">
           <template #default="{ row }">
             <pre v-if="row.detail" class="log-pre">{{ row.detail }}</pre>
@@ -50,6 +55,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="时间" width="165" align="center" />
+        <el-table-column label="操作" width="70" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button size="small" type="danger" text bg @click="delOne(row)">删除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </div>
 
@@ -160,9 +170,37 @@ async function clearAll() {
     await ElMessageBox.confirm('确定清空全部系统日志吗？此操作不可恢复。', '清空确认',
       { type: 'warning', confirmButtonText: '清空', cancelButtonText: '取消' })
   } catch { return }
-  await http.delete('/syslogs')
+  await http.post('/syslogs')
   ElMessage.success('系统日志已清空')
   reload()
+}
+
+/* ---------------- 单条 / 多选删除 ---------------- */
+
+const sel = ref([])
+
+async function removeLogs(ids) {
+  const res = await http.post('/syslogs/delete', { ids })
+  ElMessage.success(res.message || `已删除 ${ids.length} 条日志`)
+  reload()
+}
+
+async function delOne(row) {
+  try {
+    await ElMessageBox.confirm('确定删除这条系统日志吗？', '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  await removeLogs([row.id])
+}
+
+async function delSel() {
+  const rows = sel.value
+  if (!rows.length) return
+  try {
+    await ElMessageBox.confirm(`确定删除选中的 ${rows.length} 条系统日志吗？`, '批量删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  await removeLogs(rows.map(r => r.id))
 }
 
 onMounted(() => {

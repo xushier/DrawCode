@@ -272,7 +272,7 @@ def create_app():
                  detail=detail)
         return jsonify(ok=True, message="已保存")
 
-    @app.delete("/api/users/<int:uid>")
+    @app.route("/api/users/<int:uid>", methods=["DELETE", "POST"])
     @admin_required
     def delete_user(uid):
         me = current_user()
@@ -373,12 +373,14 @@ def create_app():
     def dashboard():
         tables = D.query("SELECT id, name, is_system FROM tables ORDER BY id")
         counts = {r["table_id"]: r["c"] for r in D.query(
-            "SELECT table_id, COUNT(*) c FROM records GROUP BY table_id")}
+            "SELECT table_id, COUNT(*) c FROM records "
+            "WHERE deleted_at IS NULL GROUP BY table_id")}
         total = sum(counts.values())
 
         def day_count(days):
             start = (D.now() - timedelta(days=days)).strftime("%Y-%m-%d 00:00:00")
-            row = D.query("SELECT COUNT(*) c FROM records WHERE created_at >= ?",
+            row = D.query("SELECT COUNT(*) c FROM records "
+                          "WHERE created_at >= ? AND deleted_at IS NULL",
                           (start,), one=True)
             return row["c"]
 
@@ -387,19 +389,20 @@ def create_app():
         for i in range(29, -1, -1):
             d = today - timedelta(days=i)
             ds = d.strftime("%Y-%m-%d")
-            row = D.query("SELECT COUNT(*) c FROM records WHERE created_at LIKE ?",
+            row = D.query("SELECT COUNT(*) c FROM records "
+                          "WHERE created_at LIKE ? AND deleted_at IS NULL",
                           (ds + "%",), one=True)
             growth.append({"date": ds, "count": row["c"]})
 
         recent = D.query(
             "SELECT r.id, r.table_id, r.data, r.created_at, t.name table_name "
             "FROM records r JOIN tables t ON t.id = r.table_id "
-            "ORDER BY r.id DESC LIMIT 8")
+            "WHERE r.deleted_at IS NULL ORDER BY r.id DESC LIMIT 8")
 
         # 申请人 / 工程项目排行
         counter = {}
         proj_counter = {}
-        for r in D.query("SELECT data FROM records"):
+        for r in D.query("SELECT data FROM records WHERE deleted_at IS NULL"):
             data = json.loads(r["data"])
             name = str(data.get("applicant") or "").strip()
             if name:
@@ -430,7 +433,8 @@ def create_app():
             return jsonify(ok=False, message="月份格式应为 YYYY-MM"), 400
         rows = D.query(
             "SELECT substr(created_at, 1, 10) d, COUNT(*) c FROM records "
-            "WHERE created_at LIKE ? GROUP BY substr(created_at, 1, 10)",
+            "WHERE created_at LIKE ? AND deleted_at IS NULL "
+            "GROUP BY substr(created_at, 1, 10)",
             (month + "%",))
         return jsonify(ok=True, month=month,
                        days={r["d"]: r["c"] for r in rows})
@@ -446,7 +450,7 @@ def create_app():
         rows = D.query(
             "SELECT r.id, r.table_id, r.data, r.created_at, r.updated_at, t.name table_name "
             "FROM records r JOIN tables t ON t.id = r.table_id "
-            "WHERE r.created_at LIKE ? OR r.updated_at LIKE ? "
+            "WHERE (r.created_at LIKE ? OR r.updated_at LIKE ?) AND r.deleted_at IS NULL "
             "ORDER BY r.id DESC LIMIT 500",
             (date + "%", date + "%"))
         items = []
@@ -498,12 +502,26 @@ def create_app():
         return jsonify(ok=True, total=total, items=rows, page=page,
                        users=users, actions=actions)
 
-    @app.delete("/api/ops")
+    @app.route("/api/ops", methods=["DELETE", "POST"])
     @admin_required
     def clear_ops():
         D.execute("DELETE FROM ops")
         D.log_op(current_user()["username"], "ops_clear")
         return jsonify(ok=True, message="操作记录已清空")
+
+    @app.post("/api/ops/delete")
+    @admin_required
+    def delete_ops():
+        """操作记录单条 / 多选删除"""
+        body = request.get_json(force=True, silent=True) or {}
+        ids = body.get("ids") or []
+        if not isinstance(ids, list) or not ids:
+            return jsonify(ok=False, message="未选择记录"), 400
+        ids = [int(i) for i in ids]
+        ph = ",".join("?" * len(ids))
+        D.execute(f"DELETE FROM ops WHERE id IN ({ph})", tuple(ids))
+        D.log_op(current_user()["username"], "ops_delete", detail={"count": len(ids)})
+        return jsonify(ok=True, message=f"已删除 {len(ids)} 条记录")
 
     # ---------- 系统日志 ----------
     @app.get("/api/syslogs")
@@ -537,12 +555,26 @@ def create_app():
                        modules=sorted({r["module"] for r in
                                        D.query("SELECT DISTINCT module FROM sys_logs")}))
 
-    @app.delete("/api/syslogs")
+    @app.route("/api/syslogs", methods=["DELETE", "POST"])
     @admin_required
     def clear_logs():
         D.execute("DELETE FROM sys_logs")
         D.log_op(current_user()["username"], "logs_clear")
         return jsonify(ok=True, message="系统日志已清空")
+
+    @app.post("/api/syslogs/delete")
+    @admin_required
+    def delete_logs():
+        """系统日志单条 / 多选删除"""
+        body = request.get_json(force=True, silent=True) or {}
+        ids = body.get("ids") or []
+        if not isinstance(ids, list) or not ids:
+            return jsonify(ok=False, message="未选择日志"), 400
+        ids = [int(i) for i in ids]
+        ph = ",".join("?" * len(ids))
+        D.execute(f"DELETE FROM sys_logs WHERE id IN ({ph})", tuple(ids))
+        D.log_op(current_user()["username"], "logs_delete", detail={"count": len(ids)})
+        return jsonify(ok=True, message=f"已删除 {len(ids)} 条日志")
 
     # ---------- 通知 ----------
     @app.post("/api/notify/test")
@@ -594,7 +626,7 @@ def create_app():
         D.sys_log("INFO", "NOTIFY", f"上传通知字体: {name}")
         return jsonify(ok=True, name=name)
 
-    @app.delete("/api/notify/fonts/<name>")
+    @app.route("/api/notify/fonts/<name>", methods=["DELETE", "POST"])
     @admin_required
     def delete_font(name):
         fn = os.path.basename(name)
@@ -694,7 +726,7 @@ def create_app():
         fname = _create_backup("manual", g.req_user_name())
         return jsonify(ok=True, message="备份完成", name=fname)
 
-    @app.delete("/api/backups/<name>")
+    @app.route("/api/backups/<name>", methods=["DELETE", "POST"])
     @admin_required
     def delete_backup(name):
         fn = _safe_backup_name(name)

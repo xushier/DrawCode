@@ -30,11 +30,22 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.7"
+VERSION = "1.5.8"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.8",
+        "date": "2026-10-06",
+        "items": [
+            "图号数据删除改为先进回收站：支持恢复（自动检测图号冲突并重排序号）、彻底删除、多选删除与清空",
+            "修复导入 Excel 或新增数据后列表不实时刷新、需手动刷新页面的问题",
+            "修复部分部署环境（反向代理 / WAF 拦截 DELETE 请求）删除备份等操作返回 403 的问题，删除类接口统一改用 POST",
+            "操作记录与系统日志支持单条删除与多选删除",
+            "微信通知：单条新增恢复单条通知样式，多条才使用批量汇总样式",
+        ],
+    },
     {
         "version": "1.5.7",
         "date": "2026-09-29",
@@ -371,12 +382,14 @@ def init_db():
             data TEXT,
             created_at TEXT,
             updated_at TEXT,
-            created_by TEXT
+            created_by TEXT,
+            deleted_at TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_records_table ON records(table_id);
         CREATE UNIQUE INDEX IF NOT EXISTS uniq_records_drawing
             ON records(table_id, json_extract(data, '$.drawing_no'))
-            WHERE json_extract(data, '$.drawing_no') IS NOT NULL
+            WHERE deleted_at IS NULL
+              AND json_extract(data, '$.drawing_no') IS NOT NULL
               AND TRIM(json_extract(data, '$.drawing_no')) != '';
         CREATE TABLE IF NOT EXISTS ops(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -403,6 +416,18 @@ def init_db():
         # 迁移：访客模式三档（旧值 1 → add，0 → off）
         conn.execute("UPDATE settings SET value='add' WHERE key='guest_mode' AND value='1'")
         conn.execute("UPDATE settings SET value='off' WHERE key='guest_mode' AND value='0'")
+        # 迁移：回收站软删除列（存量库补列），唯一图号索引改为只约束未删除记录，
+        # 使回收站中的图号可被重新申请、恢复时再由接口检测冲突
+        rcols = {r["name"] for r in query("PRAGMA table_info(records)")}
+        if "deleted_at" not in rcols:
+            conn.execute("ALTER TABLE records ADD COLUMN deleted_at TEXT")
+        conn.execute("DROP INDEX IF EXISTS uniq_records_drawing")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uniq_records_drawing "
+            "ON records(table_id, json_extract(data, '$.drawing_no')) "
+            "WHERE deleted_at IS NULL "
+              "AND json_extract(data, '$.drawing_no') IS NOT NULL "
+              "AND TRIM(json_extract(data, '$.drawing_no')) != ''")
         conn.commit()
 
         # 种子：管理员

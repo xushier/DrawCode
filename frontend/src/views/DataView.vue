@@ -23,6 +23,7 @@
         </el-button>
         <el-button v-if="store.isAdmin" :icon="Upload" @click="importVisible = true">导入</el-button>
         <el-button :icon="Download" :loading="exporting" @click="doExport">导出</el-button>
+        <el-button v-if="store.authed" :icon="Delete" @click="recycleVisible = true">回收站</el-button>
       </div>
       <div class="toolbar-right">
         <el-input v-model="search" placeholder="搜索全表内容…" :prefix-icon="Search"
@@ -136,6 +137,9 @@
     <RecordDialog v-model="recordVisible" :table="activeTable" :record="editing"
                   :options="options" @saved="onSaved" />
 
+    <!-- 回收站 -->
+    <RecycleDialog v-model="recycleVisible" @changed="onRecycleChanged" />
+
     <!-- 导入 -->
     <el-dialog v-model="importVisible" title="导入 Excel（附加模式，不覆盖现有数据）"
                width="520px" append-to-body destroy-on-close>
@@ -190,6 +194,7 @@ import { Plus, Upload, Download, Search, Filter, Menu, Delete } from '@element-p
 import { http, downloadBlob } from '@/api'
 import { useApp } from '@/store'
 import RecordDialog from '@/components/RecordDialog.vue'
+import RecycleDialog from '@/components/RecycleDialog.vue'
 import FilterPanel from '@/components/FilterPanel.vue'
 
 const store = useApp()
@@ -396,21 +401,21 @@ function openEdit(row) {
   recordVisible.value = true
 }
 
-async function onSaved() {
+async function onSaved(added = 0) {
   await loadOptions()
   reload()
   const t = activeTable.value
-  if (t) t.count = (t.count || 0) + 1
+  if (t && added > 0) t.count = (t.count || 0) + added
 }
 
 async function onDelete(row) {
   try {
     await ElMessageBox.confirm(
-      `确定删除该记录吗？图号「${row.data.drawing_no || row.data.name || ''}」将被移除。`,
+      `确定删除该记录吗？图号「${row.data.drawing_no || row.data.name || ''}」将移入回收站，可恢复或彻底删除。`,
       '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
-  await http.delete(`/records/${row.id}`)
-  ElMessage.success('记录已删除')
+  await http.post(`/records/${row.id}`)
+  ElMessage.success('已移入回收站')
   reload()
   const t = activeTable.value
   if (t) t.count = Math.max(0, (t.count || 1) - 1)
@@ -422,17 +427,28 @@ async function onBatchDelete() {
   if (!rows.length) return
   try {
     await ElMessageBox.confirm(
-      `确定删除选中的 ${rows.length} 条记录吗？删除后不可恢复。`,
+      `确定删除选中的 ${rows.length} 条记录吗？删除后移入回收站，可恢复或彻底删除。`,
       '批量删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
-  for (const r of rows) await http.delete(`/records/${r.id}`)
-  ElMessage.success(`已删除 ${rows.length} 条记录`)
+  for (const r of rows) await http.post(`/records/${r.id}`)
+  ElMessage.success(`已将 ${rows.length} 条记录移入回收站`)
   selection.value = []
   selSingleId.value = null
   reload()
   const t = activeTable.value
   if (t) t.count = Math.max(0, (t.count || 0) - rows.length)
   await loadOptions()
+}
+
+/* ---------------- 回收站 ---------------- */
+
+const recycleVisible = ref(false)
+
+async function onRecycleChanged() {
+  // 回收站恢复 / 彻底删除后刷新列表、选项与表计数
+  await loadOptions()
+  reload()
+  await loadTablesRefreshCount()
 }
 
 /* ---------------- 导入 / 导出 ---------------- */
@@ -452,6 +468,7 @@ async function doImport() {
     importResult.value = res
     await loadOptions()
     await loadTablesRefreshCount()
+    reload()
   } finally {
     importing.value = false
   }

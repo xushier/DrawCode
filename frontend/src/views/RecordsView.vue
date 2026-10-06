@@ -22,14 +22,19 @@
       </div>
       <div class="toolbar-right">
         <el-segmented v-model="mode" :options="modeOptions" size="default" @change="reload" />
+        <el-button v-if="sel.length" type="danger" plain :icon="Delete" @click="delSel">
+          删除选中（{{ sel.length }}）
+        </el-button>
         <el-button type="danger" plain :icon="Delete" @click="clearAll">清空记录</el-button>
       </div>
     </div>
 
     <!-- 记录表格 -->
     <div class="card table-card" v-loading="loading">
-      <el-table :data="items" stripe size="small" class="dc-table" height="100%">
+      <el-table :data="items" stripe size="small" class="dc-table" height="100%"
+                @selection-change="s => (sel = s)">
         <template #empty><el-empty description="暂无操作记录" :image-size="72" /></template>
+        <el-table-column type="selection" width="42" />
         <el-table-column type="expand" width="36">
           <template #default="{ row }">
             <div class="detail-wrap">
@@ -75,6 +80,11 @@
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
+        <el-table-column label="操作" width="70" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button size="small" type="danger" text bg @click="delOne(row)">删除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </div>
 
@@ -102,7 +112,9 @@ const ACTIONS = {
   import: '导入数据', export: '导出数据',
   table_create: '新建数据表', table_rename: '重命名数据表', table_delete: '删除数据表',
   field_add: '新增字段', field_update: '修改字段', field_delete: '删除字段',
-  settings_update: '修改设置', ops_clear: '清空操作记录', logs_clear: '清空系统日志',
+  settings_update: '修改设置', ops_clear: '清空操作记录', ops_delete: '删除操作记录',
+  logs_clear: '清空系统日志', logs_delete: '删除系统日志',
+  recycle_restore: '恢复数据', recycle_delete: '彻底删除数据', recycle_clear: '清空回收站',
   backup: '数据备份', backup_delete: '删除备份', backup_restore: '恢复备份',
   user_create: '新建用户', user_update: '用户管理', user_delete: '删除用户'
 }
@@ -131,7 +143,8 @@ const hasMore = computed(() => items.value.length < total.value)
 const TAG_TYPES = {
   record_add: 'success', record_update: 'warning', record_delete: 'danger',
   import: 'success', export: 'primary', login: 'info', logout: 'info',
-  backup: 'primary', backup_restore: 'warning', backup_delete: 'danger'
+  backup: 'primary', backup_restore: 'warning', backup_delete: 'danger',
+  recycle_restore: 'success', recycle_delete: 'danger', recycle_clear: 'danger'
 }
 
 function actionLabel(a) { return ACTIONS[a] || a }
@@ -260,9 +273,37 @@ async function clearAll() {
     await ElMessageBox.confirm('确定清空全部操作记录吗？此操作不可恢复。', '清空确认',
       { type: 'warning', confirmButtonText: '清空', cancelButtonText: '取消' })
   } catch { return }
-  await http.delete('/ops')
+  await http.post('/ops')
   ElMessage.success('操作记录已清空')
   reload()
+}
+
+/* ---------------- 单条 / 多选删除 ---------------- */
+
+const sel = ref([])
+
+async function removeRecords(ids) {
+  const res = await http.post('/ops/delete', { ids })
+  ElMessage.success(res.message || `已删除 ${ids.length} 条记录`)
+  reload()
+}
+
+async function delOne(row) {
+  try {
+    await ElMessageBox.confirm('确定删除这条操作记录吗？', '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  await removeRecords([row.id])
+}
+
+async function delSel() {
+  const rows = sel.value
+  if (!rows.length) return
+  try {
+    await ElMessageBox.confirm(`确定删除选中的 ${rows.length} 条操作记录吗？`, '批量删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  } catch { return }
+  await removeRecords(rows.map(r => r.id))
 }
 
 onMounted(async () => {

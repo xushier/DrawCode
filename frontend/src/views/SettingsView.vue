@@ -594,7 +594,7 @@ async function delFont(f) {
     await ElMessageBox.confirm(`确定删除字体「${f.name}」吗？`, '删除字体',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
-  await http.delete(`/notify/fonts/${encodeURIComponent(f.name)}`)
+  await http.post(`/notify/fonts/${encodeURIComponent(f.name)}`)
   if (form.notify_font === f.name) form.notify_font = ''
   ElMessage.success('已删除')
   await loadFonts()
@@ -666,7 +666,7 @@ async function deleteBk(row) {
     await ElMessageBox.confirm(`确定删除备份「${row.name}」吗？`, '删除备份',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
-  await http.delete(`/backups/${row.name}`)
+  await http.post(`/backups/${row.name}`)
   ElMessage.success('已删除')
   await loadBackups()
 }
@@ -726,7 +726,7 @@ async function deleteTable(row) {
       `确定删除「${row.name}」吗？该表 ${row.count} 条数据将一并删除，不可恢复。`,
       '删除数据表', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
-  await http.delete(`/tables/${row.id}`)
+  await http.post(`/tables/${row.id}`)
   ElMessage.success('数据表已删除')
   loadTables()
 }
@@ -782,7 +782,7 @@ async function deleteField(f) {
       `确定删除字段「${f.label}」吗？记录中的该字段数据将一并清除。`,
       '删除字段', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
-  await http.delete(`/fields/${f.id}`)
+  await http.post(`/fields/${f.id}`)
   ElMessage.success('字段已删除')
   await loadTables()
   const t = tables.value.find(x => x.id === fieldsTable.value.id)
@@ -865,7 +865,7 @@ async function deleteUser(row) {
       `确定删除用户「${row.username}」吗？其创建的数据将保留。`, '删除用户',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
-  await http.delete(`/users/${row.id}`)
+  await http.post(`/users/${row.id}`)
   ElMessage.success('用户已删除')
   loadUsers()
 }

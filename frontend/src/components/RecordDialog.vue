@@ -372,7 +372,7 @@ async function onSubmit() {
       delete data.sn
       await http.put(`/records/${props.record.id}`, { data })
       ElMessage.success('记录已更新')
-      emit('saved')
+      emit('saved', 0)
       show.value = false
       return
     }
@@ -403,10 +403,10 @@ async function onSubmit() {
         if (results[i].ok) { entries.splice(i, 1); entryErrs.value.splice(i, 1) }
       }
       ElMessage.warning(`已成功 ${res.added} 条，失败 ${items.length - res.added} 条，请修改后重新提交`)
-      emit('saved')
+      emit('saved', res.added)
     } else {
       ElMessage.success(`${res.added} 条图号申请成功`)
-      emit('saved')
+      emit('saved', res.added)
       show.value = false
     }
   } finally {

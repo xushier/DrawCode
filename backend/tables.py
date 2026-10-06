@@ -49,9 +49,10 @@ def sort_key(v):
 
 
 def load_records(tid):
+    """未删除（不在回收站）的记录"""
     rows = D.query(
         "SELECT id, table_id, data, created_at, updated_at, created_by "
-        "FROM records WHERE table_id=? ORDER BY id DESC", (tid,))
+        "FROM records WHERE table_id=? AND deleted_at IS NULL ORDER BY id DESC", (tid,))
     out = []
     for r in rows:
         try:
@@ -236,7 +237,8 @@ def list_tables():
         return jsonify(ok=False, message="请先登录"), 401
     tables = D.query("SELECT * FROM tables ORDER BY id")
     counts = {r["table_id"]: r["c"] for r in D.query(
-        "SELECT table_id, COUNT(*) c FROM records GROUP BY table_id")}
+        "SELECT table_id, COUNT(*) c FROM records "
+        "WHERE deleted_at IS NULL GROUP BY table_id")}
     for t in tables:
         t["count"] = counts.get(t["id"], 0)
         t["fields"] = D.query(
@@ -285,7 +287,7 @@ def create_table():
     return jsonify(ok=True, id=tid)
 
 
-@tables_bp.route("/tables/<int:tid>", methods=["PUT", "DELETE"])
+@tables_bp.route("/tables/<int:tid>", methods=["PUT", "DELETE", "POST"])
 def manage_table(tid):
     if not g.is_admin():
         return jsonify(ok=False, message="需要管理员权限"), 401
@@ -351,7 +353,7 @@ def add_field(tid):
     return jsonify(ok=True, id=fid)
 
 
-@tables_bp.route("/fields/<int:fid>", methods=["PUT", "DELETE"])
+@tables_bp.route("/fields/<int:fid>", methods=["PUT", "DELETE", "POST"])
 def manage_field(fid):
     if not g.is_admin():
         return jsonify(ok=False, message="需要管理员权限"), 401
@@ -511,10 +513,13 @@ def create_records_batch(tid):
                  detail={"data": record["data"]})
         added.append(record)
         results.append({"index": i, "ok": True, "record": record_row(record)})
-    # 批量合并通知：至少 1 条成功才发，整批一条
+    # 批量合并通知：至少 1 条成功才发；仅 1 条时用单条样式，多条才用批量汇总样式
     if added and D.get_setting("notify_enabled") == "1" and D.get_setting("notify_on_add") == "1":
-        from .notify import send_batch_notification_async
-        send_batch_notification_async(table, added, user)
+        from .notify import send_notification_async, send_batch_notification_async
+        if len(added) == 1:
+            send_notification_async("add", table, added[0]["data"], user)
+        else:
+            send_batch_notification_async(table, added, user)
     # 部分失败时 ok 仍为 true（由 partial 标记），避免前端拦截器全局弹错
     return jsonify(ok=True, partial=len(added) < len(items),
                    added=len(added), results=results)
@@ -538,6 +543,8 @@ def update_record(rid):
     u, r, err = _check_owner(rid)
     if err:
         return err
+    if r.get("deleted_at"):
+        return jsonify(ok=False, message="记录已在回收站中，请先恢复"), 404
     table = get_table(r["table_id"])
     old = json.loads(r["data"])
     body = request.get_json(force=True, silent=True) or {}
@@ -569,21 +576,177 @@ def update_record(rid):
     return jsonify(ok=True)
 
 
-@tables_bp.delete("/records/<int:rid>")
+@tables_bp.route("/records/<int:rid>", methods=["DELETE", "POST"])
 def delete_record(rid):
+    """删除记录（软删除进回收站；POST 为兼容拦截 DELETE 方法的代理环境）"""
     u, r, err = _check_owner(rid)
     if err:
         return err
+    if r.get("deleted_at"):
+        return jsonify(ok=False, message="记录已在回收站中"), 404
     table = get_table(r["table_id"])
     data = json.loads(r["data"])
-    D.execute("DELETE FROM records WHERE id=?", (rid,))
+    D.execute("UPDATE records SET deleted_at=? WHERE id=?", (D.now_str(), rid))
     D.log_op(g.req_user_name(), "record_delete", table["id"], table["name"],
              target=str(data.get("drawing_no") or data.get("name") or ""),
              detail={"data": data})
     if D.get_setting("notify_enabled") == "1" and D.get_setting("notify_on_delete") == "1":
         from .notify import send_notification_async
         send_notification_async("delete", table, data, g.req_user_name())
-    return jsonify(ok=True)
+    return jsonify(ok=True, message="已移入回收站")
+
+
+# ---------------- 回收站 ----------------
+
+def _recycle_user():
+    """回收站操作者：管理员管全部，普通用户管自己删除的；访客无权限"""
+    u = g.current_user()
+    return u, u["role"] == "admin" if u else None
+
+
+def _recycle_target(r, u, admin):
+    """校验一条回收站记录是否可被当前用户操作，返回错误信息或 None"""
+    if not r:
+        return "记录不存在"
+    if not r["deleted_at"]:
+        return "记录不在回收站中"
+    if not admin and r["created_by"] != u["username"]:
+        return "只能操作自己删除的数据"
+    return None
+
+
+def _recycle_where(u, admin, tid=None):
+    cond, args = ["r.deleted_at IS NOT NULL"], []
+    if not admin:
+        cond.append("r.created_by=?")
+        args.append(u["username"])
+    if tid:
+        cond.append("r.table_id=?")
+        args.append(int(tid))
+    return " AND ".join(cond), args
+
+
+@tables_bp.get("/recycle")
+def list_recycle():
+    u, admin = _recycle_user()
+    if not u:
+        return jsonify(ok=False, message="请先登录"), 401
+    where, args = _recycle_where(u, admin, request.args.get("table_id"))
+    rows = D.query(
+        "SELECT r.id, r.table_id, r.data, r.created_at, r.updated_at, r.created_by, r.deleted_at, "
+        "t.name table_name FROM records r JOIN tables t ON t.id = r.table_id "
+        f"WHERE {where} ORDER BY r.deleted_at DESC, r.id DESC", tuple(args))
+    kw = (request.args.get("search") or "").strip().lower()
+    items = []
+    for r in rows:
+        try:
+            r["data"] = json.loads(r["data"])
+        except Exception:
+            r["data"] = {}
+        if kw:
+            hay = json.dumps(r["data"], ensure_ascii=False).lower() + \
+                  " " + (r["table_name"] or "").lower()
+            if kw not in hay:
+                continue
+        items.append(r)
+    tables = D.query("SELECT id, name FROM tables ORDER BY id")
+    return jsonify(ok=True, items=items, total=len(items), tables=tables)
+
+
+@tables_bp.post("/recycle/restore")
+def recycle_restore():
+    """恢复回收站记录：检测图号与现有数据冲突，序号冲突时自动重排"""
+    u, admin = _recycle_user()
+    if not u:
+        return jsonify(ok=False, message="请先登录"), 401
+    body = request.get_json(force=True, silent=True) or {}
+    ids = body.get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify(ok=False, message="未选择要恢复的数据"), 400
+    results, restored = [], []
+    for rid in ids[:100]:
+        r = D.query("SELECT * FROM records WHERE id=?", (rid,), one=True)
+        err = _recycle_target(r, u, admin)
+        if err:
+            results.append({"id": rid, "ok": False, "message": err})
+            continue
+        data = json.loads(r["data"])
+        no = str(data.get("drawing_no") or "").strip()
+        if no and D.query(
+                "SELECT id FROM records WHERE table_id=? AND deleted_at IS NULL "
+                "AND json_extract(data,'$.drawing_no')=? AND id<>?",
+                (r["table_id"], no, rid), one=True):
+            results.append({"id": rid, "ok": False,
+                            "message": f"图号「{no}」已被现有数据使用，无法恢复"})
+            continue
+        # 序号与现有数据冲突时自动改为最大序号 + 1
+        try:
+            sn = int(data.get("sn") or 0)
+        except (TypeError, ValueError):
+            sn = 0
+        if sn and D.query(
+                "SELECT id FROM records WHERE table_id=? AND deleted_at IS NULL "
+                "AND CAST(json_extract(data,'$.sn') AS TEXT)=? AND id<>?",
+                (r["table_id"], str(sn), rid), one=True):
+            mx = D.query(
+                "SELECT MAX(CAST(json_extract(data,'$.sn') AS INTEGER)) m FROM records "
+                "WHERE table_id=? AND deleted_at IS NULL", (r["table_id"],), one=True)["m"] or 0
+            data["sn"] = int(mx) + 1
+            D.execute("UPDATE records SET data=? WHERE id=?",
+                      (json.dumps(data, ensure_ascii=False), rid))
+        D.execute("UPDATE records SET deleted_at=NULL, updated_at=? WHERE id=?",
+                  (D.now_str(), rid))
+        results.append({"id": rid, "ok": True})
+        restored.append(data)
+    if restored:
+        nos = [str(d.get("drawing_no") or d.get("name") or "") for d in restored]
+        D.log_op(u["username"], "recycle_restore", detail={"count": len(restored), "nos": nos})
+    return jsonify(ok=True, restored=len(restored), results=results)
+
+
+@tables_bp.post("/recycle/delete")
+def recycle_delete():
+    """彻底删除回收站记录（不可恢复）"""
+    u, admin = _recycle_user()
+    if not u:
+        return jsonify(ok=False, message="请先登录"), 401
+    body = request.get_json(force=True, silent=True) or {}
+    ids = body.get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify(ok=False, message="未选择要删除的数据"), 400
+    results, removed = [], []
+    for rid in ids[:100]:
+        r = D.query("SELECT * FROM records WHERE id=?", (rid,), one=True)
+        err = _recycle_target(r, u, admin)
+        if err:
+            results.append({"id": rid, "ok": False, "message": err})
+            continue
+        data = json.loads(r["data"])
+        D.execute("DELETE FROM records WHERE id=?", (rid,))
+        results.append({"id": rid, "ok": True})
+        removed.append(str(data.get("drawing_no") or data.get("name") or ""))
+    if removed:
+        D.log_op(u["username"], "recycle_delete", detail={"count": len(removed), "nos": removed})
+    return jsonify(ok=True, removed=len(removed), results=results)
+
+
+@tables_bp.post("/recycle/clear")
+def recycle_clear():
+    """清空回收站（可按表清空），普通用户仅清空自己删除的部分"""
+    u, admin = _recycle_user()
+    if not u:
+        return jsonify(ok=False, message="请先登录"), 401
+    body = request.get_json(force=True, silent=True) or {}
+    tid = body.get("table_id")
+    where, args = _recycle_where(u, admin, tid)
+    cnt = D.query(f"SELECT COUNT(*) c FROM records r WHERE {where}", tuple(args), one=True)["c"]
+    if not cnt:
+        return jsonify(ok=True, removed=0, message="回收站已是空的")
+    D.execute(f"DELETE FROM records WHERE id IN (SELECT r.id FROM records r WHERE {where})",
+              tuple(args))
+    D.log_op(u["username"], "recycle_clear",
+             table_id=int(tid) if tid else None, detail={"count": cnt})
+    return jsonify(ok=True, removed=cnt, message=f"已清空 {cnt} 条记录")
 
 
 # ---------------- 导入 / 导出 ----------------
