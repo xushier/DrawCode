@@ -54,7 +54,9 @@
           <el-table-column label="申请人" min-width="80" show-overflow-tooltip>
             <template #default="{ row }">{{ row.data.applicant || '—' }}</template>
           </el-table-column>
-          <el-table-column prop="created_by" label="删除人" width="90" show-overflow-tooltip />
+          <el-table-column label="删除人" width="90" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.deleted_by || '—' }}</template>
+          </el-table-column>
           <el-table-column prop="deleted_at" label="删除时间" width="150" />
           <el-table-column label="操作" width="132" fixed="right" align="center">
             <template #default="{ row }">

@@ -553,6 +553,8 @@ def update_record(rid):
     data = {k: v for k, v in raw.items() if k in fmap}
     if "sn" in fmap:
         data["sn"] = old.get("sn")  # 序号不可改
+    if "applicant" in fmap and u["role"] != "admin":
+        data["applicant"] = old.get("applicant")  # 申请人不可篡改（管理员可修正）
     if "apply_time" in fmap and not str(data.get("apply_time") or "").strip():
         data["apply_time"] = D.now_str()
     missing = [f["label"] for f in table["fields"]
@@ -586,7 +588,8 @@ def delete_record(rid):
         return jsonify(ok=False, message="记录已在回收站中"), 404
     table = get_table(r["table_id"])
     data = json.loads(r["data"])
-    D.execute("UPDATE records SET deleted_at=? WHERE id=?", (D.now_str(), rid))
+    D.execute("UPDATE records SET deleted_at=?, deleted_by=? WHERE id=?",
+              (D.now_str(), g.req_user_name(), rid))
     D.log_op(g.req_user_name(), "record_delete", table["id"], table["name"],
              target=str(data.get("drawing_no") or data.get("name") or ""),
              detail={"data": data})
@@ -633,7 +636,8 @@ def list_recycle():
         return jsonify(ok=False, message="请先登录"), 401
     where, args = _recycle_where(u, admin, request.args.get("table_id"))
     rows = D.query(
-        "SELECT r.id, r.table_id, r.data, r.created_at, r.updated_at, r.created_by, r.deleted_at, "
+        "SELECT r.id, r.table_id, r.data, r.created_at, r.updated_at, r.created_by, "
+        "r.deleted_at, r.deleted_by, "
         "t.name table_name FROM records r JOIN tables t ON t.id = r.table_id "
         f"WHERE {where} ORDER BY r.deleted_at DESC, r.id DESC", tuple(args))
     kw = (request.args.get("search") or "").strip().lower()
@@ -694,7 +698,7 @@ def recycle_restore():
             data["sn"] = int(mx) + 1
             D.execute("UPDATE records SET data=? WHERE id=?",
                       (json.dumps(data, ensure_ascii=False), rid))
-        D.execute("UPDATE records SET deleted_at=NULL, updated_at=? WHERE id=?",
+        D.execute("UPDATE records SET deleted_at=NULL, deleted_by=NULL, updated_at=? WHERE id=?",
                   (D.now_str(), rid))
         results.append({"id": rid, "ok": True})
         restored.append(data)

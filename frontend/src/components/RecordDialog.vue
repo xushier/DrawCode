@@ -47,7 +47,12 @@
                           :model-value="store.user?.username" disabled>
                   <template #suffix><span class="muted">自动</span></template>
                 </el-input>
-                <!-- 申请人：访客新增 / 任意编辑 —— 可搜索选择或自行输入（选项含全部账号） -->
+                <!-- 申请人：非管理员编辑时锁定为原申请人，防止篡改 -->
+                <el-input v-else-if="f.key === 'applicant' && isEdit && !store.isAdmin"
+                          :model-value="e[f.key]" disabled>
+                  <template #suffix><span class="muted">锁定</span></template>
+                </el-input>
+                <!-- 申请人：访客新增 / 管理员编辑 —— 可搜索选择或自行输入（选项含全部账号） -->
                 <el-autocomplete v-else-if="f.key === 'applicant'"
                                  v-model="e[f.key]" :debounce="150"
                                  :fetch-suggestions="(q, cb) => fetchSuggest(f.key, q, cb)"

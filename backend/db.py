@@ -30,11 +30,19 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.8"
+VERSION = "1.5.9"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.9",
+        "date": "2026-10-13",
+        "items": [
+            "修复普通用户编辑数据时可篡改申请人的问题：编辑时申请人锁定为原值，仅管理员可修正",
+            "回收站「删除人」列改为显示真实的删除操作人（此前误显示为记录创建人）",
+        ],
+    },
     {
         "version": "1.5.8",
         "date": "2026-10-06",
@@ -383,7 +391,8 @@ def init_db():
             created_at TEXT,
             updated_at TEXT,
             created_by TEXT,
-            deleted_at TEXT
+            deleted_at TEXT,
+            deleted_by TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_records_table ON records(table_id);
         CREATE UNIQUE INDEX IF NOT EXISTS uniq_records_drawing
@@ -421,6 +430,8 @@ def init_db():
         rcols = {r["name"] for r in query("PRAGMA table_info(records)")}
         if "deleted_at" not in rcols:
             conn.execute("ALTER TABLE records ADD COLUMN deleted_at TEXT")
+        if "deleted_by" not in rcols:
+            conn.execute("ALTER TABLE records ADD COLUMN deleted_by TEXT")
         conn.execute("DROP INDEX IF EXISTS uniq_records_drawing")
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS uniq_records_drawing "
