@@ -37,13 +37,16 @@
       <el-scrollbar v-else max-height="400px">
         <div class="day-list">
           <div v-for="r in dayItems" :key="r.id" class="day-item">
-            <el-tag size="small" :type="r.kind === 'add' ? 'success' : 'warning'" effect="plain" class="day-kind">
-              {{ r.kind === 'add' ? '新增' : '修改' }}
-            </el-tag>
-            <el-tag size="small" effect="plain" class="day-table">{{ r.table_name }}</el-tag>
-            <span class="day-drawing">{{ r.data.drawing_no || r.data.name || '—' }}</span>
-            <span class="day-name">{{ r.data.name || '' }}</span>
-            <span class="muted day-time tabular">{{ timeOf(r) }}</span>
+            <div class="day-row">
+              <el-tag size="small" :type="r.kind === 'add' ? 'success' : 'warning'" effect="plain" class="day-kind">
+                {{ r.kind === 'add' ? '新增' : '修改' }}
+              </el-tag>
+              <el-tag size="small" effect="plain" class="day-table">{{ r.table_name }}</el-tag>
+              <span class="day-drawing">{{ r.data.drawing_no || r.data.name || '—' }}</span>
+              <span class="day-name">{{ r.data.name || '' }}</span>
+              <span class="muted day-time tabular">{{ timeOf(r) }}</span>
+            </div>
+            <div v-if="daySub(r)" class="day-sub muted">{{ daySub(r) }}</div>
           </div>
         </div>
       </el-scrollbar>
@@ -155,6 +158,15 @@ function timeOf(r) {
   return (r.kind === 'add' ? r.created_at : r.updated_at) || ''
 }
 
+/* 第二行明细：型号 / 工程项目 / 申请人（空字段跳过） */
+function daySub(r) {
+  const parts = []
+  if (r.data.model) parts.push('型号：' + r.data.model)
+  if (r.data.project) parts.push('工程项目：' + r.data.project)
+  if (r.data.applicant) parts.push('申请人：' + r.data.applicant)
+  return parts.join('　')
+}
+
 onMounted(load)
 </script>
 
@@ -203,14 +215,16 @@ onMounted(load)
 .day-body { min-height: 120px; }
 .day-list { display: flex; flex-direction: column; }
 .day-item {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; flex-direction: column; gap: 3px;
   padding: 8px 4px; border-bottom: 1px solid var(--dc-border); font-size: 13px;
 }
 .day-item:last-child { border-bottom: none; }
+.day-row { display: flex; align-items: center; gap: 8px; }
 .day-table { flex: none; max-width: 170px; overflow: hidden; }
 .day-drawing { font-weight: 600; color: var(--dc-primary); flex: none; }
 .day-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .day-time { margin-left: auto; flex: none; font-size: 12px; }
+.day-sub { font-size: 12px; line-height: 1.4; word-break: break-all; }
 
 @media (max-width: 768px) {
   .cal-cell { min-height: 48px; padding: 4px 5px 3px; }

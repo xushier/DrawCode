@@ -30,11 +30,19 @@ def now():
     """当前时间（默认东八区）"""
     return datetime.now(_TZ)
 
-VERSION = "1.5.9"
+VERSION = "1.5.10"
 GITHUB_URL = "https://github.com/xushier/DrawCode"
 AUTHOR = "段松博"
 
 CHANGELOG = [
+    {
+        "version": "1.5.10",
+        "date": "2026-10-15",
+        "items": [
+            "回收站抽屉支持点击左侧遮罩关闭",
+            "仪表盘数据日历「当日动态」补充显示型号、工程项目、申请人信息",
+        ],
+    },
     {
         "version": "1.5.9",
         "date": "2026-10-13",

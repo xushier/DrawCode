@@ -1,6 +1,6 @@
 <template>
   <el-drawer v-model="show" title="回收站" size="min(880px, 96vw)" append-to-body
-             :close-on-click-modal="false" @open="onOpen">
+             :close-on-click-modal="true" @open="onOpen">
     <div class="rec-body">
       <!-- 工具栏 -->
       <div class="rec-toolbar">
